@@ -286,18 +286,19 @@ export const register: Register = (on: On, options: PluginOptions) => {
     const goal = event.args.trim();
     if (goal) run.goal = goal;
     pending = run;
-    // `$.session.compact()` is refused from inside this hook (the command's
-    // turn is still held), so the compaction starts from a timer once the
-    // command has returned, retrying while the session is still busy.
+    // Claude Code only lets a plugin rewrite the history inside a compaction,
+    // so this runs core's /compact and answers its `session.compact` below.
+    // Not `$.session.compact()`: the engine skips the calling plugin's own
+    // hooks for a compaction its code raised ("re-entry", seen on 2.1.280), so
+    // core would summarize. It starts from a timer once the command has
+    // returned (refused while the command's turn is held), retrying while busy.
     const attempt = async (left: number): Promise<void> => {
       try {
-        const { skip } = await $.session.compact();
+        await $.command.run({ command: 'compact' });
         notify(
           $,
           run.outcome ??
-            (skip
-              ? `conversation left as is (${skip})`
-              : 'warning: Claude Code compacted without Jev (its built-in summary ran)'),
+            'warning: /compact-jev failed, its Jev hook was never reached and Claude Code summarized instead',
         );
         pending = undefined;
       } catch (error) {
@@ -319,14 +320,15 @@ export const register: Register = (on: On, options: PluginOptions) => {
   on('classic.PreCompact', ($, event, next) => {
     if (!pending) return next(event);
     $.ui.log('blocked Claude Code\'s built-in compaction during /compact-jev');
-    return { block: `/${COMMAND} is running; the built-in summary is disabled for it` };
+    const block = `/${COMMAND} is running; the built-in summary is disabled for it`;
+    pending.outcome ??= `conversation left as is (${block})`;
+    return { block };
   });
 
   on('session.compact', async ($, event, next) => {
     const run = pending;
-    // Gate on the pending run only: a `$.session.compact()` started from the
-    // command's timer reaches this hook with trigger `manual` (seen on 2.1.280),
-    // not the `plugin` the declarations describe.
+    // Gate on the pending run only: the /compact the command runs arrives with
+    // trigger `manual`, as a typed /compact does.
     if (!run || event.agentId !== undefined) return next(event);
     run.handled = true;
     $.ui.log(`compacting ${event.messages.length} messages with Jev (trigger ${event.trigger})`);

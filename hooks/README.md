@@ -11,20 +11,26 @@ plugin folder is the repository root, so the hook imports it directly):
 
 - `session.start` registers `/compact-jev` with `$.command.register`.
 - `command.run` on `{ command: "compact-jev" }` marks a run as pending,
-  prints `compacting with Jev…`, and schedules `$.session.compact()` with
-  `$.clock.after`: the engine refuses that call from inside the command's own
-  hook ("it would compact under the turn this hook is holding"). While the
-  session is still busy it retries every 500 ms, up to 10 times. The outcome
+  prints `compacting with Jev…`, and with `$.clock.after` runs Claude Code's
+  own `/compact` through `$.command.run({ command: "compact" })`, once the
+  command has returned. While the session is still busy it retries every
+  500 ms, up to 10 times. It does not use `$.session.compact()`: on 2.1.280 the
+  engine skips the calling plugin's own hooks for that compaction (the debug
+  log says `session.compact skipped: re-entry`), so core would summarize. The outcome
   is shown as a toast and a log line.
   The text after the command, if any, becomes the `goal` Jev is shown.
 - `session.compact` acts only while a run is pending, for the main
-  conversation (no `agentId`). It does not check the trigger: on 2.1.280 a
-  compaction started from the command's timer arrives as `manual`, not
-  `plugin`. Anything outside a pending run goes to `next(event)` untouched.
+  conversation (no `agentId`). It does not check the trigger: the `/compact`
+  the command runs arrives as `manual`. Anything outside a pending run goes to `next(event)` untouched.
 - `classic.PreCompact` blocks Claude Code's own summarizer while a run is
   pending. So if the engine ever reaches core during `/compact-jev` (the
   `session.compact` hook skipped for a wrong shape, say), the summary is
-  vetoed and the conversation stays as it is. Outside a run it passes.
+  vetoed and the conversation stays as it is. Outside a run it passes. On a
+  machine with managed settings the built-in `sec-default` plugin answers
+  classic hooks first and this veto is never reached, so it is a backstop
+  only.
+- If `/compact` returns and no hook of this plugin handled it, the toast says
+  `warning: /compact-jev failed, …` so the failure is never silent.
 - The `session.compact` registration has a `.catch`: if the hook throws or
   overruns its budget during a run, the handler answers `{ skip }` in its
   place instead of letting core summarize.
@@ -93,7 +99,10 @@ see the root README for what they do.
   `types/claude-code.d.ts`; regenerate and review that file after a Claude
   Code upgrade.
 - The tests drive `register()` against a stand-in engine that, like the real
-  one, refuses the first `$.session.compact()` call.
+  one, refuses the first `$.command.run` call.
+- Verified live on 2.1.280 (interactive session, `--debug-file`): `/compact-jev`
+  called Jev, printed `kept 8/10 messages, no summary`, and the transcript
+  after the compact boundary had no summary message.
 
 References:
 

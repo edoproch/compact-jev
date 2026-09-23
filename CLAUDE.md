@@ -105,13 +105,14 @@ compact-jev/
   - Inside `hooks/`, use `$.http.fetch`, `$.env.get` and `$.settings.read`; never `fetch`, `process.env` or npm packages.
   - `import type … from 'claude-code'` is erased at run time.
 - **Gating is what keeps the plugin from touching `/compact`.**
-  - `command.run` sets a closure variable, `pending`, and schedules `$.session.compact()` with `$.clock.after`. Calling it directly inside the command.run hook is refused by the engine ("it would compact under the turn this hook is holding"). It retries while the session is busy, and reports the outcome with `ui.toast` and `ui.log`.
+  - `command.run` sets a closure variable, `pending`, and with `$.clock.after` runs core's `/compact` via `$.command.run({ command: 'compact' })`, retrying while the session is busy; it reports the outcome with `ui.toast` and `ui.log`. The outcome comes from `run.outcome`, because `/compact` resolves `{}` whatever happened.
+  - **Never use `$.session.compact()` here.** The engine skips the calling plugin's own hooks for a compaction its code raised (debug log: `session.compact skipped: re-entry (the plugin's own code raised it)`), so core's summary ran instead of Jev. A compaction raised by core's `/compact` reaches the hook normally.
   - `session.compact` acts only if `pending` is set and there is no `agentId`. Every other case must `return next(event)` untouched.
-  - Do not gate on `trigger`. On 2.1.280 the timer-started compaction arrives as `manual`, not `plugin`; gating on `plugin` made the built-in summary run instead of Jev.
+  - Do not gate on `trigger`: the `/compact` the command runs arrives as `manual`.
   - **The built-in summary must never run during `/compact-jev`.** Three layers enforce this:
-    1. `classic.PreCompact` returns `{ block }` while `pending`, because core raises PreCompact before summarizing.
+    1. `classic.PreCompact` returns `{ block }` while `pending`, because core raises PreCompact before summarizing. It is only a backstop: on machines with managed settings the built-in `sec-default` plugin sits outermost on `classic.*` and answers first, so this veto is never reached.
     2. The `session.compact` registration's `.catch` answers `{ skip }` if the hook throws or times out during a run. It must be chained directly on `on(...)`; `claude plugin validate` rejects a stored registration.
-    3. If the command resolves without `run.handled`, it warns.
+    3. If `/compact` resolves without `run.handled`, it warns (`warning: /compact-jev failed, …`).
   - Do not add `turn.complete` or auto triggers; they would violate the product requirement.
 - **Outcomes never fall back to the summary.**
   - If anything changed, return `{ messages }`: the pruned transcript, with no summary message.
@@ -141,6 +142,11 @@ compact-jev/
 3. Keep the test that asserts `/compact` and auto-compaction make zero fetches and call `next`.
 
 **Switch model or endpoint:** change `DEFAULT_MODEL` / `EVALUATE_URL` in `src/request.ts`, the `model` default in `plugin.json`, and `HOOK_DEFAULTS` in `hooks/compact-jev.ts`.
+
+**Verify live (the stand-in engine cannot catch engine behaviour):**
+1. Make a throwaway session with tool calls: `claude -p --model haiku --allowedTools Read "Read a.txt …"` in a trusted scratch folder (with `CLAUDE_CODE_CHILD_SESSION` unset when run from inside Claude Code).
+2. Drive an interactive `claude --resume <id> --plugin-dir ~/compact-jev --debug-file dbg.txt` with `expect`, typing `/compact-jev`. Headless `-p` cannot compact from a plugin.
+3. In `dbg.txt`, look for `compacting N messages with Jev`, `decisions:` and `answered session.compact without next()`, and for no `re-entry` skip on `session.compact`.
 
 **After a Claude Code upgrade:**
 1. Regenerate `types/claude-code.d.ts`.

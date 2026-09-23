@@ -144,14 +144,16 @@ The repository root is a Claude Code function-hook plugin. `hooks/compact-jev.ts
 is a thin adapter over `src/` with three hooks:
 
 - `session.start` registers the slash command `/compact-jev [goal]`.
-- `command.run` on `compact-jev` sets an in-memory flag and schedules
-  `$.session.compact()` on a timer. The engine refuses that call from inside
-  the command's own hook, so it runs once the command has returned, retrying
-  while the session is busy. The text after the command, if any, becomes Jev's
+- `command.run` on `compact-jev` sets an in-memory flag and, on a timer once
+  the command has returned, runs Claude Code's own `/compact` with
+  `$.command.run`, retrying while the session is busy. Claude Code lets a plugin
+  rewrite the history only by answering a compaction, and it skips a plugin's
+  own hooks for a compaction started with `$.session.compact()` (re-entry), so
+  the plugin goes through `/compact` and answers it itself. The text after the command, if any, becomes Jev's
   `goal`; otherwise the goal is the last 3 user prompts.
 - `session.compact` acts only while that flag is set, and only for the main
-  conversation. The trigger is not checked, because on 2.1.280 the deferred
-  call arrives as `manual`. Every compaction outside a `/compact-jev` run
+  conversation. The trigger is not checked, because that `/compact` arrives as
+  `manual`. Every compaction outside a `/compact-jev` run
   (`/compact`, auto, precompute, subagents, other plugins) is passed to
   `next(event)` untouched.
 

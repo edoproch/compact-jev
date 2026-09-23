@@ -1,6 +1,6 @@
 {
   "name": "compact-jev",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Verbatim context compaction for LLM agents using Jev through Vercel AI Gateway.",
   "type": "module",
   "license": "MIT",

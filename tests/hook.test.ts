@@ -165,8 +165,9 @@ function load(options: Record<string, unknown> = { preserveRecentMessages: 1 }):
 const BUILT_IN_SUMMARY = { messages: [{ role: 'user', text: 'built-in summary', toolUses: [] }] };
 
 /**
- * A stand-in for the engine: `$.session.compact()` dispatches `session.compact`
- * with trigger `plugin` through the plugin's hook, with core's summary beneath.
+ * A stand-in for the engine: `$.command.run({ command: 'compact' })` dispatches
+ * `session.compact` with trigger `manual` through the plugin's hook, with
+ * core's summary beneath.
  */
 function engine(
   hooks: Hooks,
@@ -216,21 +217,21 @@ function engine(
         return fetch(url, init);
       },
     },
-    command: { register: async (spec: unknown) => state.registered.push(spec) },
-    session: {
-      compact: async () => {
-        // Like the real engine: refused while the command's own turn is held.
+    command: {
+      register: async (spec: unknown) => state.registered.push(spec),
+      // `$.command.run({ command: 'compact' })`: core's /compact, which raises
+      // `session.compact` (trigger `manual`) through the plugin's hook.
+      run: async ({ command }: { command: string }) => {
         state.compactCalls += 1;
-        if (state.compactCalls === 1) {
-          throw new Error('session.compact: called from a command.run hook, it would compact under the turn');
-        }
-        // The real engine (2.1.280) labels a compaction started from a timer `manual`.
-        const out = await compactHook($, { trigger: 'manual', messages: messages() }, next);
-        state.installed = out;
-        return out.messages ? out : { skip: out.skip };
+        // Like the real engine: refused while a turn is still held.
+        if (state.compactCalls === 1) throw new Error('command.run: inside a hook the turn is waiting on');
+        expect(command).toBe('compact');
+        state.installed = await compactHook($, { trigger: 'manual', messages: messages() }, next);
+        // Seen on 2.1.280: /compact resolves `{}` whatever the compaction did.
+        return {};
       },
     },
-  } as Record<string, unknown> & { session: { compact: () => Promise<unknown> } };
+  } as Record<string, unknown>;
   const compactEvent = (trigger: string) => compactHook($, { trigger, messages: transcript() }, next);
   /** Runs `/compact-jev`, then the timers it left, and answers the outcome it announced. */
   const runCommand = async (args = '') => {
@@ -342,6 +343,16 @@ describe('the /compact-jev plugin', () => {
     );
     expect(state.coreRuns).toBe(0);
     expect(state.logs).toContain("blocked Claude Code's built-in compaction during /compact-jev");
+  });
+
+  it('warns loudly if the built-in summary ran anyway', async () => {
+    const hooks = load();
+    // Neither the session.compact hook nor the PreCompact veto reached (a
+    // managed machine's sec-default plugin answers classic hooks first).
+    hooks.set('session.compact', ((_$: unknown, _e: unknown, next: () => unknown) => next()) as never);
+    hooks.set('classic.PreCompact', (() => ({})) as never);
+    const { runCommand } = engine(hooks, jevFetch(() => 0.1));
+    expect((await runCommand()).text).toMatch(/^warning: \/compact-jev failed/);
   });
 
   it('lets the built-in summary run for /compact outside a /compact-jev run', async () => {
