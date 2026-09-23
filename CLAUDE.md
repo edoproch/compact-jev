@@ -166,8 +166,8 @@ compact-jev/
 - **Defaults:**
   - `keepThreshold` 0.5
   - `preserveRecentMessages` 6
-  - `maxStateTokens` 25000
-  - `maxRequestTokens` 30000 (Jev's request limit is 32k)
+  - `maxStateTokens` 20000
+  - `maxRequestTokens` 25000. Jev has a 35k context on AI Gateway; the 25k/30k of TypeSafe's own API (upstream's defaults) got a 503 on every attempt for a ~108k-char state, which the Gateway reports as "Service temporarily unavailable"
   - `truncateHeadChars` 300
   - `retries` 4
   - `model` `typesafe-ai/jev`

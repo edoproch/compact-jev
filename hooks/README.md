@@ -79,8 +79,8 @@ The plugin declares these `userConfig` values in
 | `apiKey` | unset (falls back to `AI_GATEWAY_API_KEY`) |
 | `keepThreshold` | `0.5` |
 | `preserveRecentMessages` | `6` |
-| `maxStateTokens` | `25000` |
-| `maxRequestTokens` | `30000` |
+| `maxStateTokens` | `20000` |
+| `maxRequestTokens` | `25000` |
 | `truncateHeadChars` | `300` |
 | `retries` | `4` |
 | `model` | `typesafe-ai/jev` |
