@@ -123,6 +123,7 @@ put it in a source file.
 | `maxStateTokens` | `25000` | Estimated token ceiling for the state |
 | `maxRequestTokens` | `30000` | Estimated ceiling for state plus one batch of questions |
 | `truncateHeadChars` | `300` | Characters of a dropped tool result retained before its note |
+| `retries` | `4` | Extra attempts per request after a 429 or 5xx, sent at once (the Gateway answers 503 at random) |
 
 `result.stats` reports message and character counts before and after, the
 per-reason decision counts, the state size in estimated tokens, which fitting

@@ -86,7 +86,7 @@ compact-jev/
   - Entry points: `compact(messages, asker, options)` is the main one; `reductionRatio` is a helper.
 - **`request.ts`**: the HTTP shape, with no I/O.
   - Constants: `EVALUATE_URL`, `DEFAULT_MODEL`.
-  - Functions: `buildJevRequest`, `parseJevResponse`, and `probabilityAnswer`, which extracts one boolean answer.
+  - Functions: `buildJevRequest`, `parseJevResponse` (throws `JevRequestError` with `status` and `retryable` on non-2xx), and `probabilityAnswer`, which extracts one boolean answer.
 - **`client.ts`**: `JevClient` implements `JevAsker` over `fetch`. The key comes from the option or from `AI_GATEWAY_API_KEY`, and the client is Node-only.
 - **`messages.ts`**: `compactMessages(messages, opts)` is `compact` with a `JevClient`.
 
@@ -95,7 +95,7 @@ compact-jev/
 - **`hooks/compact-jev.ts`**: exports `register(on, options)` plus testable helpers.
   - Helpers: `resolveHookConfig`, `jevAsker` (over `$.http.fetch`), `toSessionMessages`, `compactSession`, `changedAnything`, `summarize`, `decisionLog`, `decisionLogLines`, and the `COMMAND` constant.
   - Hooks: `session.start` registers the command; `command.run` on `compact-jev` serves it; `session.compact` is gated.
-- **`.claude-plugin/plugin.json`**: `userConfig` options, namely `apiKey` (sensitive), `keepThreshold`, `preserveRecentMessages`, `maxStateTokens`, `maxRequestTokens`, `truncateHeadChars` and `model`.
+- **`.claude-plugin/plugin.json`**: `userConfig` options, namely `apiKey` (sensitive), `keepThreshold`, `preserveRecentMessages`, `maxStateTokens`, `maxRequestTokens`, `truncateHeadChars`, `retries` and `model`.
 - **`types/claude-code.d.ts`**: the reference for every `$` call and event shape. Grep it; do not read it whole. Regenerate it with `/plugin-types` after a Claude Code upgrade.
 
 ## Key architectural patterns
@@ -121,6 +121,7 @@ compact-jev/
   - There is no minimum-reduction threshold, by design.
 - **Handles:** messages the library returns unchanged are the engine's own objects, with their `handle`. Rebuilt ones have no handle, and the engine rebuilds them from `role`, `text` and the tool blocks. `toSessionMessages` maps by object identity.
 - **Wire format:** the Gateway evaluation API uses `type: 'boolean'` questions and answers `{ type: 'boolean', probability }`. This is not TypeSafe's native `noul`. Usage fields are camelCase (`inputTokens`).
+- **Retries:** the Gateway's Jev answers 503 at random (measured 2026-09-23: 1–3 of 5 identical requests, more often for large ones). `askBatch` in `src/compact.ts` resends a request at once on a `JevRequestError` with `retryable` (429/5xx), up to `retries` times, and counts them in `stats.retries`. No delay: the hook runtime has no `setTimeout`, and `$.clock.sleep` would eat the hook's budget.
 - **Decisions:** `keepResult ≥ τ` keeps everything; otherwise `keepCall ≥ τ` truncates the result to `truncateHeadChars` plus a note (only when the result is longer than head + 120); otherwise the call and its result are removed.
 
 ## Common workflows
@@ -168,6 +169,7 @@ compact-jev/
   - `maxStateTokens` 25000
   - `maxRequestTokens` 30000 (Jev's request limit is 32k)
   - `truncateHeadChars` 300
+  - `retries` 4
   - `model` `typesafe-ai/jev`
 - **Install:** `claude plugin marketplace add edoproch/compact-jev`, then `claude plugin install compact-jev@compact-jev`.
 - **Privacy:** every run sends all user and assistant text and the tool inputs (at most 1000 characters each) to the Gateway and on to TypeSafe. Tool outputs are not sent.

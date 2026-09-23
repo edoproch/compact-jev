@@ -36,6 +36,22 @@ export function buildJevRequest(
   };
 }
 
+/** A non-2xx answer from the evaluation API; `status` is the HTTP status. */
+export class JevRequestError extends Error {
+  constructor(
+    readonly status: number,
+    text: string,
+  ) {
+    super(`Jev request failed (${status}): ${text.slice(0, 200)}`);
+    this.name = 'JevRequestError';
+  }
+
+  /** 429 and 5xx: the same request may well succeed when sent again. */
+  get retryable(): boolean {
+    return this.status === 429 || this.status >= 500;
+  }
+}
+
 /** Validates a Jev response body; throws on anything but an `answers` object. */
 export function parseJevResponse(
   status: number,
@@ -43,7 +59,7 @@ export function parseJevResponse(
   text: string,
 ): JevResponse {
   if (!ok) {
-    throw new Error(`Jev request failed (${status}): ${text.slice(0, 200)}`);
+    throw new JevRequestError(status, text);
   }
   let parsed: unknown;
   try {

@@ -321,7 +321,10 @@ describe('the /compact-jev plugin', () => {
     expect((await keepAll.runCommand()).text).toMatch(/^nothing to remove, conversation left as is/);
     expect(keepAll.state.installed).toEqual({ skip: 'Jev kept every tool call and result' });
 
-    const failing = engine(load(), async () => ({ status: 429, ok: false, text: 'rate limited' }));
+    const failing = engine(
+      load(),
+      async () => ({ status: 429, ok: false, text: 'rate limited' }),
+    );
     expect((await failing.runCommand()).text).toBe(
       'conversation left as is (Jev request failed (429): rate limited)',
     );
@@ -330,6 +333,8 @@ describe('the /compact-jev plugin', () => {
     const keyless = engine(load(), jevFetch(() => 0.1), {});
     expect((await keyless.runCommand()).text).toMatch(/AI_GATEWAY_API_KEY is not configured/);
     for (const run of [keepAll, failing, keyless]) expect(run.state.coreRuns).toBe(0);
+    // A persistent 429 is sent 1 + 4 retries times before giving up.
+    expect(failing.state.fetches).toBe(5);
   });
 
   it('blocks the built-in summary if Claude Code reaches it during /compact-jev', async () => {
@@ -374,6 +379,19 @@ describe('the /compact-jev plugin', () => {
     hooks.set('session.compact', (($: unknown) => caught($, {}, timeout)) as never);
     const { runCommand } = engine(hooks, jevFetch(() => 0.1));
     expect((await runCommand()).text).toBe('conversation left as is (the Jev hook failed: timeout)');
+  });
+
+  it('retries a Gateway 503 and still prunes', async () => {
+    const ok = jevFetch(() => 0.1);
+    let calls = 0;
+    const { state, runCommand } = engine(load(), async (url, init) => {
+      calls += 1;
+      if (calls === 1) return { status: 503, ok: false, text: 'Service temporarily unavailable' };
+      return ok(url, init);
+    });
+    const { text } = await runCommand();
+    expect(text).toMatch(/^kept \d+\/7 messages, no summary .*1 retried after a Gateway error\)$/);
+    expect(state.coreRuns).toBe(0);
   });
 
   it('sends the text after /compact-jev as the goal, over AI Gateway', async () => {

@@ -10,6 +10,7 @@ import {
   estimateTokens,
   fitState,
   JevClient,
+  JevRequestError,
   parseJevResponse,
   reductionRatio,
   resolveOptions,
@@ -79,6 +80,7 @@ describe('options', () => {
       maxStateTokens: 25_000,
       maxRequestTokens: 30_000,
       truncateHeadChars: 300,
+      retries: 4,
     });
     expect(resolveOptions({
       keepThreshold: Number.NaN,
@@ -329,6 +331,44 @@ describe('decisions', () => {
     expect(noHead[2]?.toolResults?.[0]?.text).toBe(
       `[fast-jev-compaction truncated ${total} chars of this tool result; re-run the tool if needed]`,
     );
+  });
+});
+
+/** Fails the first `failures` calls with `status`, then answers like `fakeJev`. */
+function flakyJev(failures: number, status: number, answer: (name: string) => number) {
+  const inner = fakeJev(answer);
+  const state = { calls: 0 };
+  const asker: JevAsker = {
+    async ask(s, questions) {
+      state.calls += 1;
+      if (state.calls <= failures) throw new JevRequestError(status, 'Service temporarily unavailable');
+      return inner.ask(s, questions);
+    },
+  };
+  return { asker, state };
+}
+
+describe('retries', () => {
+  it('sends a request again after a 503 or 429 and counts the retries', async () => {
+    for (const status of [503, 429]) {
+      const { asker, state } = flakyJev(2, status, () => 0.1);
+      const output = await compact(transcript(), asker, { preserveRecentMessages: 1 });
+      expect(state.calls).toBe(3);
+      expect(output.stats.retries).toBe(2);
+      expect(output.stats.callsDropped).toBeGreaterThan(0);
+    }
+  });
+
+  it('gives up after `retries` extra attempts, and never retries a 4xx', async () => {
+    const down = flakyJev(10, 503, () => 0.1);
+    await expect(compact(transcript(), down.asker, { preserveRecentMessages: 1, retries: 2 })).rejects.toThrow(
+      'Jev request failed (503)',
+    );
+    expect(down.state.calls).toBe(3);
+
+    const bad = flakyJev(10, 400, () => 0.1);
+    await expect(compact(transcript(), bad.asker, { preserveRecentMessages: 1 })).rejects.toThrow('(400)');
+    expect(bad.state.calls).toBe(1);
   });
 });
 

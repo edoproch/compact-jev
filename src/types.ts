@@ -105,6 +105,8 @@ export interface CompactOptions {
   maxRequestTokens?: number;
   /** Characters of a dropped tool result to retain. Default 300. */
   truncateHeadChars?: number;
+  /** Extra attempts per request after a 429 or 5xx, sent at once. Default 4. */
+  retries?: number;
 }
 
 export interface ResolvedCompactOptions {
@@ -114,6 +116,7 @@ export interface ResolvedCompactOptions {
   maxStateTokens: number;
   maxRequestTokens: number;
   truncateHeadChars: number;
+  retries: number;
 }
 
 export interface CompactResult {
@@ -134,6 +137,8 @@ export interface CompactResult {
     /** Which fitting stage the state needed, '' when no request was made. */
     stateStage: string;
     requests: number;
+    /** Requests sent again after a 429 or 5xx. */
+    retries: number;
     ms: number;
   };
 }

@@ -1,4 +1,4 @@
-import { probabilityAnswer } from './request.js';
+import { JevRequestError, probabilityAnswer } from './request.js';
 import { collectToolCalls, estimateTokens, fitState } from './state.js';
 import type {
   CallAnswer,
@@ -21,6 +21,7 @@ export const DEFAULT_OPTIONS: ResolvedCompactOptions = {
   maxStateTokens: 25_000,
   maxRequestTokens: 30_000,
   truncateHeadChars: 300,
+  retries: 4,
 };
 
 /** Tokens the request envelope (`model`, key names) adds around state and questions. */
@@ -49,6 +50,7 @@ export function resolveOptions(options: CompactOptions = {}): ResolvedCompactOpt
       0,
       Math.floor(finite(options.truncateHeadChars, DEFAULT_OPTIONS.truncateHeadChars)),
     ),
+    retries: Math.max(0, Math.floor(finite(options.retries, DEFAULT_OPTIONS.retries))),
   };
 }
 
@@ -118,9 +120,24 @@ async function askBatch(
   asker: JevAsker,
   state: CompactionState,
   batch: readonly ToolCall[],
+  retries: number,
+  onRetry: () => void,
 ): Promise<Map<string, CallAnswer>> {
   const questions: JevQuestions = Object.assign({}, ...batch.map(questionsFor));
-  const { answers } = await asker.ask(state, questions);
+  // The Gateway answers 503 at random (seen at 20-60% of identical requests),
+  // so a retryable failure is sent again at once, up to `retries` times.
+  let left = retries;
+  const ask = async (): Promise<Awaited<ReturnType<JevAsker['ask']>>> => {
+    try {
+      return await asker.ask(state, questions);
+    } catch (error) {
+      if (left <= 0 || !(error instanceof JevRequestError) || !error.retryable) throw error;
+      left -= 1;
+      onRetry();
+      return ask();
+    }
+  };
+  const { answers } = await ask();
   return new Map(
     batch.map((call) => [
       call.id,
@@ -267,13 +284,16 @@ export async function compact(
 
   let fitted: { tokens: number; stage: string } = { tokens: 0, stage: '' };
   let batches: ToolCall[][] = [];
+  let retries = 0;
   const answers = new Map<string, CallAnswer>();
   if (candidates.length > 0) {
     const state = fitState(messages, calls, resolved);
     fitted = state;
     batches = batchCalls(candidates, state.tokens, resolved);
     const answered = await Promise.all(
-      batches.map((batch) => askBatch(asker, state.state, batch)),
+      batches.map((batch) =>
+        askBatch(asker, state.state, batch, resolved.retries, () => (retries += 1)),
+      ),
     );
     for (const map of answered) for (const [id, answer] of map) answers.set(id, answer);
   }
@@ -303,6 +323,7 @@ export async function compact(
       stateTokens: fitted.tokens,
       stateStage: fitted.stage,
       requests: batches.length,
+      retries,
       ms: Date.now() - started,
     },
   };

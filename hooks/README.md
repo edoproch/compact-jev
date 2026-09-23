@@ -82,6 +82,7 @@ The plugin declares these `userConfig` values in
 | `maxStateTokens` | `25000` |
 | `maxRequestTokens` | `30000` |
 | `truncateHeadChars` | `300` |
+| `retries` | `4` |
 | `model` | `typesafe-ai/jev` |
 
 The key is looked up in this order: the sensitive `apiKey` option,

@@ -59,6 +59,7 @@ export function resolveHookConfig(options: PluginOptions): HookConfig {
     'maxStateTokens',
     'maxRequestTokens',
     'truncateHeadChars',
+    'retries',
   ] as const) {
     const value = options[key];
     if (typeof value === 'number' && Number.isFinite(value)) numbers[key] = value;
@@ -177,7 +178,9 @@ export function summarize(result: CompactResult): string {
   ].filter(Boolean);
   return `${percent(reductionRatio(result))} reduction; ${
     parts.join(', ') || 'no tool calls'
-  }; state ~${stats.stateTokens} tokens (${stats.stateStage}) in ${stats.requests} request(s)`;
+  }; state ~${stats.stateTokens} tokens (${stats.stateStage}) in ${stats.requests} request(s)${
+    stats.retries > 0 ? `, ${stats.retries} retried after a Gateway error` : ''
+  }`;
 }
 
 const UI_LOG_MAX_CHARS = 4096;
