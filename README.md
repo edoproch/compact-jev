@@ -149,10 +149,11 @@ is a thin adapter over `src/` with three hooks:
   the command's own hook, so it runs once the command has returned, retrying
   while the session is busy. The text after the command, if any, becomes Jev's
   `goal`; otherwise the goal is the last 3 user prompts.
-- `session.compact` acts only while that flag is set, and only on the
-  `plugin` trigger for the main conversation. Every other compaction (`/compact`,
-  auto, precompute, subagents, other plugins) is passed to `next(event)`
-  untouched.
+- `session.compact` acts only while that flag is set, and only for the main
+  conversation. The trigger is not checked, because on 2.1.280 the deferred
+  call arrives as `manual`. Every compaction outside a `/compact-jev` run
+  (`/compact`, auto, precompute, subagents, other plugins) is passed to
+  `next(event)` untouched.
 
 While `/compact-jev` runs, the hook returns the pruned messages with no summary
 message whenever anything was removed or truncated. When Jev keeps everything,

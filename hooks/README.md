@@ -17,9 +17,12 @@ plugin folder is the repository root, so the hook imports it directly):
   session is still busy it retries every 500 ms, up to 10 times. The outcome
   is shown as a toast and a log line.
   The text after the command, if any, becomes the `goal` Jev is shown.
-- `session.compact` acts only while a run is pending, on trigger `plugin`,
-  for the main conversation (no `agentId`). Anything else goes to
-  `next(event)` untouched.
+- `session.compact` acts only while a run is pending, for the main
+  conversation (no `agentId`). It does not check the trigger: on 2.1.280 a
+  compaction started from the command's timer arrives as `manual`, not
+  `plugin`. Anything outside a pending run goes to `next(event)` untouched.
+  If Claude Code compacts without reaching this hook, the command warns that
+  the built-in summary ran instead of reporting success.
 
 During a run the hook reads the AI Gateway key, hands the transcript to the
 library (which calls `POST https://ai-gateway.vercel.sh/v1/evaluate`, model

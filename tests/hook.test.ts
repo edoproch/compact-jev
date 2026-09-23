@@ -214,7 +214,8 @@ function engine(
         if (state.compactCalls === 1) {
           throw new Error('session.compact: called from a command.run hook, it would compact under the turn');
         }
-        const out = await compactHook($, { trigger: 'plugin', messages: messages() }, next);
+        // The real engine (2.1.280) labels a compaction started from a timer `manual`.
+        const out = await compactHook($, { trigger: 'manual', messages: messages() }, next);
         state.installed = out;
         return out.messages ? out : { skip: out.skip };
       },
@@ -272,7 +273,8 @@ describe('the /compact-jev plugin', () => {
     expect(installed.map((m) => m.handle)).toEqual(['h-0', 'h-tool-2', 'r-tool-2', 'h-5', 'h-6']);
     expect(installed.some((m) => m.text === 'built-in summary')).toBe(false);
     expect(text).toMatch(/^kept 5\/7 messages, no summary \(\d+% reduction; 1 kept, 1 call_dropped/);
-    expect(state.logs[0]).toMatch(/^decisions: t1:Read:drop_call/);
+    expect(state.logs[0]).toBe('compacting 7 messages with Jev (trigger manual)');
+    expect(state.logs[1]).toMatch(/^decisions: t1:Read:drop_call/);
   });
 
   it('applies any reduction, however small (no minimum ratio)', async () => {
@@ -311,6 +313,16 @@ describe('the /compact-jev plugin', () => {
     const keyless = engine(load(), jevFetch(() => 0.1), {});
     expect((await keyless.runCommand()).text).toMatch(/AI_GATEWAY_API_KEY is not configured/);
     for (const run of [keepAll, failing, keyless]) expect(run.state.coreRuns).toBe(0);
+  });
+
+  it('warns instead of saying done when Claude Code compacted without the hook', async () => {
+    const hooks = load();
+    // A later hook in the chain would never be reached if the engine skipped ours;
+    // simulate that by removing the plugin's session.compact hook.
+    hooks.set('session.compact', ((_$: unknown, _e: unknown, next: () => unknown) => next()) as never);
+    const { state, runCommand } = engine(hooks, jevFetch(() => 0.1));
+    expect((await runCommand()).text).toBe('warning: Claude Code compacted without Jev (its built-in summary ran)');
+    expect(state.fetches).toBe(0);
   });
 
   it('sends the text after /compact-jev as the goal, over AI Gateway', async () => {

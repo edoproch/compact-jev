@@ -106,7 +106,9 @@ compact-jev/
   - `import type … from 'claude-code'` is erased at run time.
 - **Gating is what keeps the plugin from touching `/compact`.**
   - `command.run` sets a closure variable, `pending`, and schedules `$.session.compact()` with `$.clock.after`. Calling it directly inside the command.run hook is refused by the engine ("it would compact under the turn this hook is holding"). It retries while the session is busy, and reports the outcome with `ui.toast` and `ui.log`.
-  - `session.compact` acts only if `pending` is set, `trigger === 'plugin'` and there is no `agentId`. Every other case must `return next(event)` untouched.
+  - `session.compact` acts only if `pending` is set and there is no `agentId`. Every other case must `return next(event)` untouched.
+  - Do not gate on `trigger`. On 2.1.280 the timer-started compaction arrives as `manual`, not `plugin`; gating on `plugin` made the built-in summary run instead of Jev.
+  - If `$.session.compact()` resolves without the hook having handled it (`run.handled`), the command warns that the built-in summary ran.
   - Do not add `turn.complete` or auto triggers; they would violate the product requirement.
 - **Outcomes never fall back to the summary.**
   - If anything changed, return `{ messages }`: the pruned transcript, with no summary message.

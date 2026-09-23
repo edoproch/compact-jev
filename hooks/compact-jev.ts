@@ -257,7 +257,7 @@ function errorText(error: unknown): string {
 }
 
 /** One `/compact-jev` run: the goal typed after the command, and what it ended with. */
-type PendingRun = { goal?: string; outcome?: string };
+type PendingRun = { goal?: string; outcome?: string; handled?: boolean };
 
 export const register: Register = (on: On, options: PluginOptions) => {
   const configured = resolveHookConfig(options);
@@ -292,10 +292,16 @@ export const register: Register = (on: On, options: PluginOptions) => {
     const attempt = async (left: number): Promise<void> => {
       try {
         const { skip } = await $.session.compact();
-        notify($, run.outcome ?? (skip ? `conversation left as is (${skip})` : 'done'));
+        notify(
+          $,
+          run.outcome ??
+            (skip
+              ? `conversation left as is (${skip})`
+              : 'warning: Claude Code compacted without Jev (its built-in summary ran)'),
+        );
         pending = undefined;
       } catch (error) {
-        if (left > 0 && !run.outcome) {
+        if (left > 0 && !run.handled) {
           $.clock.after(COMPACT_RETRY_MS, () => void attempt(left - 1));
           return;
         }
@@ -309,7 +315,12 @@ export const register: Register = (on: On, options: PluginOptions) => {
 
   on('session.compact', async ($, event, next) => {
     const run = pending;
-    if (!run || event.trigger !== 'plugin' || event.agentId !== undefined) return next(event);
+    // Gate on the pending run only: a `$.session.compact()` started from the
+    // command's timer reaches this hook with trigger `manual` (seen on 2.1.280),
+    // not the `plugin` the declarations describe.
+    if (!run || event.agentId !== undefined) return next(event);
+    run.handled = true;
+    $.ui.log(`compacting ${event.messages.length} messages with Jev (trigger ${event.trigger})`);
     try {
       const config: HookConfig = { ...configured, apiKey: await getApiKey($, configured) };
       if (run.goal) config.goal = run.goal;
