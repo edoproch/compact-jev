@@ -18,6 +18,123 @@ Differences from upstream:
   small. When nothing can be removed or Jev fails, the conversation stays as
   it is; it never falls back to the built-in summary.
 
+## Quick start: install and use the plugin
+
+### Requirements
+
+- Claude Code 2.1.274 or later (`claude --version`).
+- A [Vercel AI Gateway](https://vercel.com/ai-gateway) API key. Jev
+  (`typesafe-ai/jev`) is billed to that Gateway account.
+- Read access to this repository on GitHub while it is private (see
+  [Private repository access](#private-repository-access)).
+
+### 1. Enable function hooks
+
+The plugin is built on function hooks, an early-access Claude Code feature
+that is off by default. Add the flag to `~/.claude/settings.json` (merge it
+into an existing `env` block if you have one):
+
+```json
+{ "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" } }
+```
+
+### 2. Install
+
+```sh
+claude plugin marketplace add edoproch/compact-jev
+claude plugin install compact-jev@compact-jev
+```
+
+The install asks for the plugin options. Put your AI Gateway key in **AI
+Gateway API key** (`apiKey`): it is marked sensitive and kept in secure
+storage. Leave the other options at their defaults. If you skip the key, the
+plugin falls back to an `AI_GATEWAY_API_KEY` environment variable.
+
+Restart Claude Code, or run `/reload-plugins` in an open session. `/compact-jev`
+then shows up in the `/` command list.
+
+### 3. Use `/compact-jev`
+
+```
+/compact-jev [goal]
+```
+
+Run it in a long session when the context is full of old tool output: files
+read, command output, search results. Jev scores every tool call and
+result, except those in the first message and the 6 newest, and the command
+then:
+
+- **keeps** the call and its full output when the current task still needs
+  it,
+- **truncates** the output to its first 300 characters plus a note when the
+  call still matters but its output does not,
+- **removes** the call and its output together otherwise.
+
+Your messages and Claude's replies are always kept verbatim, and no summary
+is written. Claude can re-read a file or re-run a command whose output was
+removed.
+
+**The goal.** Jev judges everything against "the current task". By default
+that is your last three requests. Text after the command replaces it:
+
+```
+/compact-jev
+/compact-jev fix the rounding bug in src/cart/total.ts, do not touch applyDiscount
+/compact-jev next: add pagination to src/routes/invoices.ts
+```
+
+Write a goal when you are about to switch tasks, when your last messages were
+vague ("ok", "go on"), or when you want specific files or errors kept. Name
+them in the goal. Describe what comes next, not what is done: work the goal
+makes look finished tends to be removed. The goal applies to that one run
+only.
+
+**What you see.** The command prints `compacting with Jev…`, then a
+notification with the outcome, usually within a few seconds:
+
+- `kept N/M messages, no summary (…)`: the conversation was compacted.
+- `nothing to remove, conversation left as is (…)`: Jev wanted everything.
+- `conversation left as is (…)`: something failed (missing key, Gateway
+  error, …); the reason is in the parentheses. Nothing changed, and Claude's
+  own summary did not run.
+
+**What it never does.** `/compact`, Claude Code's automatic compaction and
+other plugins work exactly as before. `/compact-jev` runs only when you type
+it, and when it fails the conversation is left as it is instead of being
+summarized.
+
+### Update and uninstall
+
+```sh
+claude plugin marketplace update compact-jev
+claude plugin update compact-jev@compact-jev   # then /reload-plugins
+claude plugin uninstall compact-jev@compact-jev
+```
+
+To change the key or an option later, use `/plugin`, open `compact-jev`, and
+edit its configuration. The options are listed under [Options](#options).
+
+### Troubleshooting
+
+- **`/compact-jev` is not in the command list**: the function-hooks flag is
+  not set in the environment Claude Code started from. Check step 1, then
+  restart.
+- **`conversation left as is (Jev request failed (503) …)`**: the Gateway
+  sometimes answers 503 to Jev. Each request is already retried 12 times, so
+  run the command again a minute later.
+- **`conversation left as is (AI_GATEWAY_API_KEY is not configured)`**: set `apiKey` with `/plugin` or
+  export `AI_GATEWAY_API_KEY`.
+- Run `claude --debug` to see the per-call probabilities in `decisions:` log
+  lines.
+
+### Private repository access
+
+While this repository is private, `claude plugin marketplace add` clones it
+with your own git credentials. You need to be a collaborator, and git must be
+able to reach GitHub, e.g. after `gh auth login` and `gh auth setup-git`. A
+clone that fails with "repository not found" means the access or the
+credentials are missing.
+
 ## What and why
 
 Most context compaction asks an LLM to summarize old turns. A summary is
@@ -85,15 +202,18 @@ Jev failures, malformed answers, a missing key, or a history that cannot be
 fitted throw. The caller decides what to do; the `/compact-jev` hook leaves
 the conversation as it is.
 
-## Install and usage
+## Library usage
+
+The package is not published on npm. Build it from a checkout
+(`npm install && npm run build`) and import `dist/index.js`, or depend on the
+checkout's path.
 
 ```sh
-npm install compact-jev
 export AI_GATEWAY_API_KEY=...
 ```
 
 ```ts
-import { compactMessages, reductionRatio, type Message } from 'compact-jev';
+import { compactMessages, reductionRatio, type Message } from './compact-jev/dist/index.js';
 
 const transcript: Message[] = [
   { role: 'user', text: 'Fix the failing test. Never edit src/generated.', toolUses: [] },
@@ -184,31 +304,12 @@ as a toast and a log line, e.g. `kept N/M messages, no summary (…)`, and one o
 `decisions:` log lines list each call's probabilities. See
 [`hooks/README.md`](hooks/README.md) for configuration.
 
-### Install in Claude Code
-
-Function hooks are an early-access Claude Code feature (2.1.274+), so the
-opt-in flag must be set wherever Claude Code runs, e.g. in `~/.claude/settings.json`:
-
-```json
-{ "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" } }
-```
-
-Then add this repository as a plugin marketplace and install the plugin:
-
-```sh
-claude plugin marketplace add edoproch/compact-jev
-claude plugin install compact-jev@compact-jev
-```
-
-The install prompts for the plugin options. Put the AI Gateway key in the
-sensitive `apiKey` option; it is kept in secure storage. `AI_GATEWAY_API_KEY`
-in the environment also works, but an `env` entry in `settings.json` is
-exported to every Bash child and MCP server. Restart Claude Code or run
-`/reload-plugins`, then run `/compact-jev` (optionally `/compact-jev <goal>`)
-whenever you want a Jev compaction.
-
-To run from a checkout without installing: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir .`
-from the repository root.
+Installation and usage are covered in the [Quick start](#quick-start-install-and-use-the-plugin).
+Prefer the sensitive `apiKey` option over `AI_GATEWAY_API_KEY` in the `env`
+block of `settings.json`: that block is exported to every Bash child and MCP
+server. To run from a checkout without installing, run
+`CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir .` from the
+repository root.
 
 ## Privacy
 
