@@ -2,6 +2,7 @@ import type {
   CompactionState,
   FittedState,
   HistoryEntry,
+  HistoryToolCall,
   Message,
   ResolvedCompactOptions,
   ToolCall,
@@ -9,10 +10,14 @@ import type {
 } from './types.js';
 
 export const STATE_CONTEXT =
-  'A coding assistant conversation is being compacted to free context. `history` is the whole conversation so far, oldest first; tool outputs are replaced by a short `result` note and long texts may be abridged. Each question asks whether one tool call, or the full output of that call, still needs to stay in the history verbatim. Whatever is not kept is deleted permanently, but the assistant can always re-run a tool or re-read a file.';
+  "A coding assistant's conversation, oldest first, is being trimmed to free context. `history` holds every message's text (long texts may be abridged) and the tool calls under question: each shows its tool, its input, the start and end of its output in `result`, and in `later` a later call that re-ran or changed the same thing. The current task is the latest user request in `goal`. Whatever is not kept is deleted, but the assistant can always re-run a tool or re-read a file.";
 
 /** Successive caps on the serialised tool input included per call. */
 const INPUT_CHARS = [1000, 200, 60] as const;
+/** Share of an output excerpt taken from its start; the rest is its end. */
+const EXCERPT_HEAD = 2 / 3;
+/** Tools that change the file they name, which supersedes earlier reads of it. */
+const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 const TEXT_HEAD = 400;
 const TEXT_TAIL = 150;
 
@@ -45,6 +50,46 @@ function abridge(text: string, head: number, tail: number): string {
   if (text.length <= head + tail + 40) return text;
   const omitted = text.length - head - tail;
   return `${text.slice(0, head)}\n[… ${omitted} chars omitted …]\n${text.slice(-tail)}`;
+}
+
+/** The start and end of a tool output, `chars` long in all; '' for 0. */
+export function outputExcerpt(text: string, chars: number): string {
+  if (chars <= 0) return '';
+  const flat = text.trim();
+  if (flat.length <= chars + 20) return flat;
+  const head = Math.round(chars * EXCERPT_HEAD);
+  const tail = chars - head;
+  return `${flat.slice(0, head)} […${flat.length - chars} chars…] ${flat.slice(-tail)}`;
+}
+
+/** What a call acts on, from its input: a path, command, URL or query. */
+export function callTarget(call: Pick<ToolCall, 'input'>): string {
+  const input = call.input;
+  const value = ['file_path', 'notebook_path', 'path', 'command', 'url', 'query', 'pattern', 'description', 'prompt']
+    .map((key) => input[key])
+    .find((v) => typeof v === 'string' && v.trim().length > 0);
+  return truncate(String(value ?? '').replace(/\s+/g, ' ').trim(), 100);
+}
+
+/**
+ * Facts Jev can read literally: a later call with the same target re-ran it,
+ * or, for a read, a later edit changed the file.
+ */
+export function laterNotes(calls: readonly ToolCall[]): Map<string, string> {
+  const notes = new Map<string, string>();
+  calls.forEach((call, index) => {
+    const target = callTarget(call);
+    if (!target) return;
+    const later = calls.slice(index + 1).find((next) => callTarget(next) === target);
+    if (!later) return;
+    notes.set(
+      call.id,
+      EDIT_TOOLS.has(later.tool) && !EDIT_TOOLS.has(call.tool)
+        ? `changed later by ${later.id} (${later.tool})`
+        : `run again later as ${later.id}`,
+    );
+  });
+  return notes;
 }
 
 export function isPinned(
@@ -102,8 +147,15 @@ function inputText(input: Record<string, unknown>, limit: number): string {
   return truncate(json, limit);
 }
 
-function resultNote(call: ToolCall): string {
-  return `${call.isError ? 'error' : 'ok'}, ${call.resultChars} chars (omitted)`;
+function resultNote(call: ToolCall, excerpt: string): string {
+  const status = `${call.isError ? 'error' : 'ok'}, ${call.resultChars} chars`;
+  return excerpt ? `${status}: ${excerpt}` : `${status} (omitted)`;
+}
+
+function resultText(messages: readonly Message[], call: ToolCall): string {
+  return (
+    messages[call.resultIndex]?.toolResults?.find((r) => r.tool_use_id === call.tool_use_id)?.text ?? ''
+  );
 }
 
 /** One call as a single line, for when the structured form is too costly. */
@@ -152,16 +204,23 @@ function historyEntries(
   messages: readonly Message[],
   calls: readonly ToolCall[],
   inputChars: number,
+  outputChars: number,
+  later: ReadonlyMap<string, string>,
 ): HistoryEntry[] {
   const byMessage = callsByMessage(calls);
   const entries: HistoryEntry[] = [];
   messages.forEach((message, i) => {
-    const toolCalls = (byMessage.get(i) ?? []).map((call) => ({
-      id: call.id,
-      tool: call.tool,
-      input: inputText(call.input, inputChars),
-      result: resultNote(call),
-    }));
+    const toolCalls = (byMessage.get(i) ?? []).map((call) => {
+      const entry: HistoryToolCall = {
+        id: call.id,
+        tool: call.tool,
+        input: inputText(call.input, inputChars),
+        result: resultNote(call, outputExcerpt(resultText(messages, call), outputChars)),
+      };
+      const note = later.get(call.id);
+      if (note) entry.later = note;
+      return entry;
+    });
     if (message.text.trim().length === 0 && toolCalls.length === 0) return;
     const entry: HistoryEntry = { i, role: message.role, text: message.text };
     if (toolCalls.length > 0) entry.tool_calls = toolCalls;
@@ -170,23 +229,34 @@ function historyEntries(
   return entries;
 }
 
-/** The last three user prompts, as the default `goal`. */
+/**
+ * User turns that are not requests: slash-command echoes and their output,
+ * background-task notifications, interruptions and bare `/command` lines.
+ */
+const NOT_A_REQUEST =
+  /^\s*(<command-(name|message|args)>|<local-command-|<task-notification>|\[Request interrupted|\/[\w:-]+\s*$)/;
+
+/** The last three user requests, as the default `goal`. */
 export function goalFromMessages(messages: readonly Message[]): string {
   return messages
     .filter(
       (message) =>
         message.role === 'user' &&
-        message.text.trim().length > 0 &&
-        (message.toolResults ?? []).length === 0,
+        (message.toolResults ?? []).length === 0 &&
+        !NOT_A_REQUEST.test(message.text),
     )
+    .map((message) => message.text.replace(/\[Image #\d+\]\s*/g, '').trim())
+    .filter((text) => text.length > 0)
     .slice(-3)
-    .map((message) => truncate(message.text, 500))
+    .map((text) => truncate(text, 500))
     .join('\n');
 }
 
 /**
- * Builds the Jev state from the whole conversation and shrinks it in stages
- * until it fits `maxStateTokens`: tool inputs are truncated, then long texts
+ * Builds the Jev state from the whole conversation and the given `calls` (the
+ * ones a request asks about; `allCalls`, default `calls`, supply the `later`
+ * notes), and shrinks it in stages until it fits `maxStateTokens`: tool
+ * inputs are truncated, then output excerpts are halved, then long texts
  * are abridged oldest-first (pinned messages last), then old messages collapse
  * to a one-line note, then old tool calls shrink to one line each, then old
  * messages that carry no call are left out, then runs of old call-only
@@ -195,8 +265,12 @@ export function goalFromMessages(messages: readonly Message[]): string {
 export function fitState(
   messages: readonly Message[],
   calls: readonly ToolCall[],
-  options: Pick<ResolvedCompactOptions, 'maxStateTokens' | 'preserveRecentMessages' | 'goal'>,
+  options: Pick<ResolvedCompactOptions, 'maxStateTokens' | 'preserveRecentMessages' | 'goal'> &
+    Partial<Pick<ResolvedCompactOptions, 'outputExcerptChars'>>,
+  allCalls: readonly ToolCall[] = calls,
 ): FittedState {
+  const later = laterNotes(allCalls);
+  const outputChars = Math.max(0, options.outputExcerptChars ?? 0);
   const goal = options.goal || goalFromMessages(messages);
   const stateOf = (history: HistoryEntry[]): CompactionState => ({
     context: STATE_CONTEXT,
@@ -214,8 +288,8 @@ export function fitState(
   let history: HistoryEntry[] = [];
   let perEntry: number[] = [];
   let tokens = 0;
-  const rebuild = (inputChars: number): void => {
-    history = historyEntries(messages, calls, inputChars);
+  const rebuild = (inputChars: number, excerptChars = outputChars): void => {
+    history = historyEntries(messages, calls, inputChars, excerptChars, later);
     perEntry = history.map(entryTokens);
     tokens = baseTokens + perEntry.reduce((sum, n) => sum + n, 0);
   };
@@ -235,6 +309,11 @@ export function fitState(
   for (const limit of INPUT_CHARS.slice(1)) {
     rebuild(limit);
     if (fits()) return fitted(history, tokens, `inputs<=${limit}`);
+  }
+  if (outputChars > 0) {
+    const half = Math.floor(outputChars / 2);
+    rebuild(INPUT_CHARS[2], half);
+    if (fits()) return fitted(history, tokens, `outputs<=${half}`);
   }
 
   const pinned = (entry: HistoryEntry): boolean =>

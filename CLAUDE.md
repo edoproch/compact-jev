@@ -76,12 +76,13 @@ compact-jev/
   - `JevAsker`, the transport interface.
 - **`state.ts`**: builds and sizes the state Jev sees.
   - Pairing and pinning: `collectToolCalls` pairs tool_use and tool_result by id and assigns ids `t1…tN`; `isPinned` pins the first message and the newest `preserveRecentMessages`.
+  - Call facts: `callTarget` (the path/command/URL/query a call acts on), `outputExcerpt` (start + end of an output), `laterNotes` (`run again later as tN`, `changed later by tN (Edit)`).
   - Estimation: `estimateTokens`, a heuristic that uses no tokenizer.
-  - Goal: `goalFromMessages` defaults to the last 3 user prompts.
-  - Fitting: `fitState`, a staged reduction into `maxStateTokens` that throws if the state cannot fit. `STATE_CONTEXT` is the fixed preamble sent with the state.
+  - Goal: `goalFromMessages` defaults to the last 3 user requests, skipping slash-command echoes, `<local-command-…>`, task notifications, interruptions and `[Image #n]` placeholders.
+  - Fitting: `fitState(messages, calls, options, allCalls?)` lists every message's text plus only `calls` (with output excerpts and `later` notes computed over `allCalls`), and reduces it in stages into `maxStateTokens`; it throws if the state cannot fit. `STATE_CONTEXT` is the fixed preamble sent with the state.
 - **`compact.ts`**: orchestration.
   - Options: `resolveOptions`, `DEFAULT_OPTIONS`.
-  - Questions: `questionsFor` produces two `boolean` questions per call, `call_tN` and `result_tN`; `batchCalls` packs them into requests under `maxRequestTokens`.
+  - Questions: `questionsFor` produces two `boolean` questions per call, `call_tN` and `result_tN`, each with `criteria` (`CALL_CRITERIA`, `RESULT_CRITERIA`) and the call's tool + target in the instructions; `batchCalls` packs them into requests of at most `maxQuestionsPerRequest` under `maxRequestTokens`.
   - Decisions: `decideCall` chooses keep, `drop_result` (truncate the head) or `drop_call`, using `keepThreshold`; `applyDecisions` rebuilds the messages.
   - Entry points: `compact(messages, asker, options)` is the main one; `reductionRatio` is a helper.
 - **`request.ts`**: the HTTP shape, with no I/O.
@@ -95,7 +96,7 @@ compact-jev/
 - **`hooks/compact-jev.ts`**: exports `register(on, options)` plus testable helpers.
   - Helpers: `resolveHookConfig`, `jevAsker` (over `$.http.fetch`), `toSessionMessages`, `compactSession`, `changedAnything`, `summarize`, `decisionLog`, `decisionLogLines`, and the `COMMAND` constant.
   - Hooks: `session.start` registers the command; `command.run` on `compact-jev` serves it; `session.compact` is gated.
-- **`.claude-plugin/plugin.json`**: `userConfig` options, namely `apiKey` (sensitive), `keepThreshold`, `preserveRecentMessages`, `maxStateTokens`, `maxRequestTokens`, `maxQuestionsPerRequest`, `truncateHeadChars`, `retries` and `model`.
+- **`.claude-plugin/plugin.json`**: `userConfig` options, namely `apiKey` (sensitive), `keepThreshold`, `preserveRecentMessages`, `maxStateTokens`, `maxRequestTokens`, `maxQuestionsPerRequest`, `truncateHeadChars`, `outputExcerptChars`, `retries` and `model`.
 - **`types/claude-code.d.ts`**: the reference for every `$` call and event shape. Grep it; do not read it whole. Regenerate it with `/plugin-types` after a Claude Code upgrade.
 
 ## Key architectural patterns
@@ -121,13 +122,19 @@ compact-jev/
   - There is no minimum-reduction threshold, by design.
 - **Handles:** messages the library returns unchanged are the engine's own objects, with their `handle`. Rebuilt ones have no handle, and the engine rebuilds them from `role`, `text` and the tool blocks. `toSessionMessages` maps by object identity.
 - **Wire format:** the Gateway evaluation API uses `type: 'boolean'` questions and answers `{ type: 'boolean', probability }`. This is not TypeSafe's native `noul`. Usage fields are camelCase (`inputTokens`).
-- **Request sizing and retries (Gateway reliability):** Jev through AI Gateway answers 503 ("Service temporarily unavailable") at random, and far more often for larger requests. Measured 2026-09-23 on a real 270-message session, 10 requests each: ~10k input tokens (8k state, 40 questions) pass 70–90%; ~12–14k (80–120 questions) ~45%; ~16k+ (160+ questions, or a 15–20k state) 10–35%. Tiny requests pass ~100%, parallel requests are no worse than sequential ones, and spacing attempts does not help. Hence the defaults: `maxStateTokens` 8000, `maxQuestionsPerRequest` 40, `retries` 8 (immediate; `askBatch` resends a `JevRequestError` with `retryable`, i.e. 429/5xx, and counts them in `stats.retries`). With them, 10/10 end-to-end compactions of that session succeeded in 1–3 s with 1–4 retries, and Jev's decisions matched a 20k-state run 116/116. Upstream's 25k/30k (tuned for TypeSafe's own 32k API) failed on every attempt.
+- **How Jev is asked (quality, measured 2026-09-23):** follow Jev's docs (docs.typesafe.ai primitives/jaggedness, vercel.com/docs/ai-gateway/modalities/evaluation):
+  - Every boolean question carries `criteria: { true, false }` and asks one judgment. Without criteria, and with outputs replaced by `ok, N chars (omitted)`, every `keepResult` came back under 0.25 (so nothing was ever kept) even though the ranking was right.
+  - Each batch gets its **own focused state**: all message texts plus only that batch's calls, with an output excerpt and `later` notes. Docs: unrelated state is a distractor.
+  - On three labeled synthetic conversations (lab harness, not in the repo), agreement with the labels was 98–100/102; needed outputs score 0.55–0.9, stale ones mostly < 0.35. On real Bash-heavy sessions of this project, keepResult stays low (< 0.3) but keepCall ranks the task-relevant calls first, so they end as `drop_result` (call + 300-char head) instead of vanishing.
+  - A `choice` question (keep/brief/drop) was tried and discriminated worse than two booleans with criteria. Short criteria (≈25 tokens) separated worse than the current ones.
+  - The softer false criterion ("re-read or re-ran", not "changed") matters: a small Edit does not make an earlier Read of that file useless.
+- **Request sizing and retries (Gateway reliability):** Jev through AI Gateway answers 503 ("Service temporarily unavailable") at random, more often for larger requests, and the rate swings over time (the same ~11k-token request passed 15%, then 53%, of attempts minutes apart; ~6k-token requests 80–95%). Parallel requests are no worse than sequential ones, and spacing attempts does not help. Defaults: `maxStateTokens` 8000 (6000 changed 11/87 decisions vs 4/87 run-to-run noise), `maxQuestionsPerRequest` 20 (~11k input tokens with criteria), `retries` 12 (immediate; `askBatch` resends a `JevRequestError` with `retryable`, i.e. 429/5xx, and counts them in `stats.retries`). A 644-message, 251-call transcript took 26 requests, ~7 s and 30–40 retries.
 - **Decisions:** `keepResult ≥ τ` keeps everything; otherwise `keepCall ≥ τ` truncates the result to `truncateHeadChars` plus a note (only when the result is longer than head + 120); otherwise the call and its result are removed.
 
 ## Common workflows
 
 **Change what Jev is asked:**
-1. Edit `questionsFor` in `src/compact.ts`.
+1. Edit `questionsFor` / the criteria in `src/compact.ts` (or `STATE_CONTEXT` / `historyEntries` in `src/state.ts`). Measure before and after on labeled conversations with the real API: flat probabilities mean the question or state is wrong, not the model.
 2. Update the exact-text expectations in `tests/fast-jev-compaction.test.ts`.
 3. Run `npm test`.
 
@@ -168,9 +175,10 @@ compact-jev/
   - `preserveRecentMessages` 6
   - `maxStateTokens` 8000
   - `maxRequestTokens` 25000
-  - `maxQuestionsPerRequest` 40
+  - `maxQuestionsPerRequest` 20
   - `truncateHeadChars` 300
-  - `retries` 8
+  - `outputExcerptChars` 240
+  - `retries` 12
   - `model` `typesafe-ai/jev`
 - **Install:** `claude plugin marketplace add edoproch/compact-jev`, then `claude plugin install compact-jev@compact-jev`.
-- **Privacy:** every run sends all user and assistant text and the tool inputs (at most 1000 characters each) to the Gateway and on to TypeSafe. Tool outputs are not sent.
+- **Privacy:** every run sends all user and assistant text, the tool inputs (at most 1000 characters each) and an excerpt of each candidate tool output (at most `outputExcerptChars`, 240) to the Gateway and on to TypeSafe. `outputExcerptChars: 0` sends no output.

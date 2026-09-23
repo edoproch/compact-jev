@@ -9,7 +9,11 @@ import {
   decideCall,
   estimateTokens,
   fitState,
+  goalFromMessages,
   JevClient,
+  laterNotes,
+  outputExcerpt,
+  questionsFor,
   JevRequestError,
   parseJevResponse,
   reductionRatio,
@@ -79,9 +83,10 @@ describe('options', () => {
       preserveRecentMessages: 6,
       maxStateTokens: 8_000,
       maxRequestTokens: 25_000,
-      maxQuestionsPerRequest: 40,
+      maxQuestionsPerRequest: 20,
       truncateHeadChars: 300,
-      retries: 8,
+      outputExcerptChars: 240,
+      retries: 12,
     });
     expect(resolveOptions({
       keepThreshold: Number.NaN,
@@ -147,6 +152,47 @@ describe('state fitting', () => {
     expect(state.goal).toContain('go ahead');
   });
 
+  it('leaves command echoes, notifications and image placeholders out of the goal', () => {
+    const goal = goalFromMessages([
+      message('user', '[Image #3] the tests fail on CI'),
+      message('user', '<command-name>/compact</command-name> <command-message>compact</command-message>'),
+      message('user', '<local-command-stdout>Compacted</local-command-stdout>'),
+      message('user', '<task-notification> <task-id>a1</task-id> done </task-notification>'),
+      message('user', '[Request interrupted by user]'),
+      message('user', '/compact-jev'),
+      message('user', 'fix it'),
+    ]);
+    expect(goal).toBe('the tests fail on CI\nfix it');
+  });
+
+  it('shows an excerpt of each output and what later replaced it', () => {
+    const messages = [
+      message('user', 'start'),
+      call('r1', 'Read', { file_path: 'src/a.ts' }, fileA),
+      result('r1', fileA),
+      call('e1', 'Edit', { file_path: 'src/a.ts', old_string: 'a', new_string: 'b' }, 'ok'),
+      result('e1', 'The file src/a.ts has been updated.'),
+      message('assistant', 'done'),
+    ];
+    const { state } = fitState(messages, collectToolCalls(messages, 0), { ...fit, outputExcerptChars: 90 });
+    const read = state.history[1]?.tool_calls?.[0] as HistoryToolCall;
+    expect(read.result).toMatch(/^ok, 1000 chars: export const a = 1;/);
+    expect(read.result).toContain('chars…]');
+    expect(read.later).toBe('changed later by t2 (Edit)');
+    expect((state.history[2]?.tool_calls?.[0] as HistoryToolCall).result).toBe(
+      'ok, 35 chars: The file src/a.ts has been updated.',
+    );
+  });
+
+  it('lists only the calls it is given, with later notes from all of them', () => {
+    const messages = transcript();
+    const calls = collectToolCalls(messages, 0);
+    const { state } = fitState(messages, [calls[0]!], fit, calls);
+    const listed = state.history.flatMap((e) => (e.tool_calls ?? []) as HistoryToolCall[]).map((c) => c.id);
+    expect(listed).toEqual(['t1']);
+    expect(JSON.stringify(state)).toContain('checking b.ts');
+  });
+
   it('truncates tool inputs before touching message text', () => {
     const messages = [
       message('user', 'start'),
@@ -156,10 +202,10 @@ describe('state fitting', () => {
     ];
     const { state, stage, tokens } = fitState(messages, collectToolCalls(messages, 0), {
       ...fit,
-      maxStateTokens: 300,
+      maxStateTokens: 400,
     });
     expect(stage).toBe('inputs<=200');
-    expect(tokens).toBeLessThanOrEqual(300);
+    expect(tokens).toBeLessThanOrEqual(400);
     expect(state.history[0]?.text).toBe('start');
     expect((state.history[1]?.tool_calls?.[0] as HistoryToolCall).input.length).toBeLessThanOrEqual(200);
   });
@@ -226,6 +272,35 @@ describe('state fitting', () => {
   it('throws when the history cannot be fitted', () => {
     const messages = [message('user', 'a'.repeat(2000)), message('assistant', 'b')];
     expect(() => fitState(messages, [], { ...fit, maxStateTokens: 50 })).toThrow(/too large/);
+  });
+});
+
+describe('questions', () => {
+  it('asks one judgment per question, names the call and defines both answers', () => {
+    const [read] = collectToolCalls(transcript(), 0);
+    const questions = questionsFor(read!);
+    expect(Object.keys(questions)).toEqual(['call_t1', 'result_t1']);
+    expect(questions.result_t1).toMatchObject({
+      type: 'boolean',
+      instructions: 'Does the current task still need the exact output of tool call t1 (Read src/a.ts)?',
+    });
+    for (const q of Object.values(questions)) {
+      expect(q.type === 'boolean' && q.criteria?.true && q.criteria.false).toBeTruthy();
+    }
+  });
+
+  it('excerpts the start and end of an output', () => {
+    expect(outputExcerpt('short', 240)).toBe('short');
+    expect(outputExcerpt('x'.repeat(1000), 0)).toBe('');
+    const excerpt = outputExcerpt(`HEAD${'.'.repeat(1000)}TAIL`, 60);
+    expect(excerpt.startsWith('HEAD')).toBe(true);
+    expect(excerpt.endsWith('TAIL')).toBe(true);
+  });
+
+  it('notes a call run again later', () => {
+    const calls = collectToolCalls(transcript().concat(call('b2', 'Bash', { command: 'npm test' }, ''), result('b2', 'ok')), 0);
+    expect(laterNotes(calls).get('t3')).toBe('run again later as t4');
+    expect(laterNotes(calls).has('t1')).toBe(false);
   });
 });
 
@@ -380,22 +455,23 @@ describe('retries', () => {
 });
 
 describe('compact', () => {
-  it('resends the full state with every batch and merges the answers', async () => {
+  it('gives every batch a state with only its own calls and merges the answers', async () => {
     const seen: Seen[] = [];
     const messages = transcript();
-    const stateTokens = fitState(messages, collectToolCalls(messages, 1), {
-      ...fit,
-      goal: '',
-      preserveRecentMessages: 1,
-    }).tokens;
     const output = await compact(
       messages,
       fakeJev((name) => (name.startsWith('call_') ? 0.9 : 0.1), seen),
-      { preserveRecentMessages: 1, maxRequestTokens: stateTokens + 150 },
+      { preserveRecentMessages: 1, maxQuestionsPerRequest: 2 },
     );
 
     expect(output.stats.requests).toBe(seen.length);
-    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.length).toBe(3);
+    for (const request of seen) {
+      const state = request.state as { history: { text: string; tool_calls?: HistoryToolCall[] }[] };
+      const listed = state.history.flatMap((e) => e.tool_calls ?? []).map((c) => c.id);
+      expect(request.questions).toEqual(listed.flatMap((id) => [`call_${id}`, `result_${id}`]));
+      expect(JSON.stringify(state)).toContain('Never edit anything under src/generated');
+    }
     expect(seen.flatMap((r) => r.questions).sort()).toEqual([
       'call_t1',
       'call_t2',
@@ -404,7 +480,6 @@ describe('compact', () => {
       'result_t2',
       'result_t3',
     ]);
-    expect(new Set(seen.map((r) => JSON.stringify(r.state))).size).toBe(1);
     expect(output.decisions.map((d) => d.action)).toEqual(['drop_result', 'drop_result', 'drop_result']);
     expect(output.messages).toHaveLength(messages.length);
     expect(output.stats).toMatchObject({ resultsDropped: 3, kept: 0, callsDropped: 0, pinned: 0 });

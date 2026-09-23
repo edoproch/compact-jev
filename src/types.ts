@@ -67,7 +67,10 @@ export interface HistoryToolCall {
   id: string;
   tool: string;
   input: string;
+  /** Status, size and an excerpt of the output (start and end). */
   result: string;
+  /** A later call that re-ran this one or changed its file. */
+  later?: string;
 }
 
 export interface HistoryEntry {
@@ -78,7 +81,7 @@ export interface HistoryEntry {
   tool_calls?: HistoryToolCall[] | string[];
 }
 
-/** The state sent with every Jev request: the whole history, results omitted. */
+/** The state of one Jev request: every message's text and the calls it asks about. */
 export interface CompactionState {
   context: string;
   goal: string;
@@ -103,11 +106,13 @@ export interface CompactOptions {
   maxStateTokens?: number;
   /** Estimated token ceiling for state plus one batch of questions. Default 25000. */
   maxRequestTokens?: number;
-  /** Questions (two per tool call) in one request at most. Default 40. */
+  /** Questions (two per tool call) in one request at most. Default 20. */
   maxQuestionsPerRequest?: number;
   /** Characters of a dropped tool result to retain. Default 300. */
   truncateHeadChars?: number;
-  /** Extra attempts per request after a 429 or 5xx, sent at once. Default 8. */
+  /** Characters of each asked-about tool output Jev sees (start and end); 0 sends none. Default 240. */
+  outputExcerptChars?: number;
+  /** Extra attempts per request after a 429 or 5xx, sent at once. Default 12. */
   retries?: number;
 }
 
@@ -119,6 +124,7 @@ export interface ResolvedCompactOptions {
   maxRequestTokens: number;
   maxQuestionsPerRequest: number;
   truncateHeadChars: number;
+  outputExcerptChars: number;
   retries: number;
 }
 
@@ -136,6 +142,7 @@ export interface CompactResult {
     resultsDropped: number;
     callsDropped: number;
     pinned: number;
+    /** Estimated tokens of the largest state a request carried. */
     stateTokens: number;
     /** Which fitting stage the state needed, '' when no request was made. */
     stateStage: string;

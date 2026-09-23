@@ -81,9 +81,10 @@ The plugin declares these `userConfig` values in
 | `preserveRecentMessages` | `6` |
 | `maxStateTokens` | `8000` |
 | `maxRequestTokens` | `25000` |
-| `maxQuestionsPerRequest` | `40` |
+| `maxQuestionsPerRequest` | `20` |
 | `truncateHeadChars` | `300` |
-| `retries` | `8` |
+| `outputExcerptChars` | `240` |
+| `retries` | `12` |
 | `model` | `typesafe-ai/jev` |
 
 The key is looked up in this order: the sensitive `apiKey` option,

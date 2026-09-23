@@ -334,7 +334,7 @@ describe('the /compact-jev plugin', () => {
     expect((await keyless.runCommand()).text).toMatch(/AI_GATEWAY_API_KEY is not configured/);
     for (const run of [keepAll, failing, keyless]) expect(run.state.coreRuns).toBe(0);
     // A persistent 429 is sent 1 + 8 retries times before giving up.
-    expect(failing.state.fetches).toBe(9);
+    expect(failing.state.fetches).toBe(13);
   });
 
   it('blocks the built-in summary if Claude Code reaches it during /compact-jev', async () => {

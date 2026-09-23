@@ -1,5 +1,5 @@
 import { JevRequestError, probabilityAnswer } from './request.js';
-import { collectToolCalls, estimateTokens, fitState } from './state.js';
+import { callTarget, collectToolCalls, estimateTokens, fitState } from './state.js';
 import type {
   CallAnswer,
   CallDecision,
@@ -20,9 +20,10 @@ export const DEFAULT_OPTIONS: ResolvedCompactOptions = {
   preserveRecentMessages: 6,
   maxStateTokens: 8_000,
   maxRequestTokens: 25_000,
-  maxQuestionsPerRequest: 40,
+  maxQuestionsPerRequest: 20,
   truncateHeadChars: 300,
-  retries: 8,
+  outputExcerptChars: 240,
+  retries: 12,
 };
 
 /** Tokens the request envelope (`model`, key names) adds around state and questions. */
@@ -55,27 +56,48 @@ export function resolveOptions(options: CompactOptions = {}): ResolvedCompactOpt
       2,
       Math.floor(finite(options.maxQuestionsPerRequest, DEFAULT_OPTIONS.maxQuestionsPerRequest)),
     ),
+    outputExcerptChars: Math.max(
+      0,
+      Math.floor(finite(options.outputExcerptChars, DEFAULT_OPTIONS.outputExcerptChars)),
+    ),
     retries: Math.max(0, Math.floor(finite(options.retries, DEFAULT_OPTIONS.retries))),
   };
 }
 
+// What each answer means. Jev's docs ask for `criteria` on every boolean
+// question and for one judgment per question; without them the answers came
+// back flat (every result below 0.25, measured 2026-09-23), with them the
+// outputs a task still needs score 0.55–0.9 and the rest under 0.35.
+const CALL_CRITERIA = {
+  true: 'the fact that this step was taken (with its input) is something the current task builds on',
+  false: 'a routine, exploratory or superseded step whose record no longer matters',
+};
+const RESULT_CRITERIA = {
+  true: 'the current task still depends on the exact contents of this output (code about to be changed, an error still being fixed, data still being used) and no later call replaces it',
+  false: 'the output is unrelated to the current task, belongs to finished earlier work, or a later call re-read or re-ran the same thing',
+};
+
 /** The two `boolean` questions asked about one call: keep the call, keep its result. */
 export function questionsFor(call: ToolCall): JevQuestions {
+  const target = callTarget(call);
+  const name = `tool call ${call.id} (${call.tool}${target ? ` ${target}` : ''})`;
   return {
     [`call_${call.id}`]: {
       type: 'boolean',
-      instructions: `Tool call ${call.id} (${call.tool}) should stay in the history: knowing this call was made, with its input, still matters for what the assistant does next`,
+      instructions: `Is ${name} a step the current task still builds on?`,
+      criteria: CALL_CRITERIA,
     },
     [`result_${call.id}`]: {
       type: 'boolean',
-      instructions: `The full output of tool call ${call.id} (${call.tool}, ${call.resultChars} chars) should stay in the history verbatim: the assistant still needs its contents and re-running the tool would not do`,
+      instructions: `Does the current task still need the exact output of ${name}?`,
+      criteria: RESULT_CRITERIA,
     },
   };
 }
 
 /**
- * Splits the candidate calls into batches whose questions, together with the
- * (always complete) state, fit one request, with at most
+ * Splits the candidate calls into batches whose questions, together with a
+ * state of `stateTokens`, fit one request, with at most
  * `maxQuestionsPerRequest` questions (two per call) in each.
  */
 export function batchCalls(
@@ -132,10 +154,11 @@ async function askBatch(
   onRetry: () => void,
 ): Promise<Map<string, CallAnswer>> {
   const questions: JevQuestions = Object.assign({}, ...batch.map(questionsFor));
-  // The Gateway answers 503 at random, more often the larger the request
-  // (measured on a real 270-message session: ~80% of ~10k-token requests
-  // pass, ~10% of ~16k+), and spacing attempts does not help, so a retryable
-  // failure is sent again at once, up to `retries` times.
+  // The Gateway answers 503 at random, more often the larger the request and
+  // at some hours far more than others (the same ~11k-token request passed
+  // 15% of the time, then 53%, measured 2026-09-23), and spacing attempts does
+  // not help, so a retryable failure is sent again at once, up to `retries`
+  // times.
   let left = retries;
   const ask = async (): Promise<Awaited<ReturnType<JevAsker['ask']>>> => {
     try {
@@ -277,9 +300,11 @@ function count(decisions: readonly CallDecision[], reason: CallDecision['reason'
 /**
  * Compacts a transcript by asking Jev, for every tool call outside the pinned
  * first and newest messages, whether the call and whether its result must
- * stay. The whole history (results omitted, fitted into `maxStateTokens`) is
- * sent as state with every batch of questions. Throws when Jev fails or the
- * history cannot be fitted; the caller decides whether to fall back.
+ * stay. Each batch of questions gets a state of its own, fitted into
+ * `maxStateTokens`: every message's text plus only that batch's calls, each
+ * with an excerpt of its output (Jev's docs: a state holding what the
+ * question does not need makes its answers worse). Batches run in parallel.
+ * Throws when Jev fails or the history cannot be fitted.
  */
 export async function compact(
   messages: readonly Message[],
@@ -297,12 +322,13 @@ export async function compact(
   let retries = 0;
   const answers = new Map<string, CallAnswer>();
   if (candidates.length > 0) {
-    const state = fitState(messages, calls, resolved);
-    fitted = state;
-    batches = batchCalls(candidates, state.tokens, resolved);
+    // Sized against the largest state a batch may get, so every batch fits.
+    batches = batchCalls(candidates, resolved.maxStateTokens, resolved);
+    const states = batches.map((batch) => fitState(messages, batch, resolved, calls));
+    fitted = states.reduce((a, b) => (b.tokens > a.tokens ? b : a));
     const answered = await Promise.all(
-      batches.map((batch) =>
-        askBatch(asker, state.state, batch, resolved.retries, () => (retries += 1)),
+      batches.map((batch, i) =>
+        askBatch(asker, states[i]!.state, batch, resolved.retries, () => (retries += 1)),
       ),
     );
     for (const map of answered) for (const [id, answer] of map) answers.set(id, answer);

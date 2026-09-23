@@ -1,6 +1,6 @@
 {
   "name": "compact-jev",
-  "version": "0.4.7",
+  "version": "0.5.0",
   "description": "/compact-jev: Jev-guided verbatim compaction for Claude Code, called through Vercel AI Gateway. Never replaces /compact or auto-compaction.",
   "author": {
     "name": "edoproch",
@@ -42,7 +42,13 @@
       "type": "number",
       "title": "Maximum questions per Jev request",
       "description": "Questions (two per tool call) sent in one Jev request at most; larger requests get a 503 from the Gateway far more often.",
-      "default": 40
+      "default": 20
+    },
+    "outputExcerptChars": {
+      "type": "number",
+      "title": "Tool output excerpt sent to Jev",
+      "description": "Characters of each tool output Jev sees (its start and end) to judge whether it is still needed; 0 sends no tool output at all.",
+      "default": 240
     },
     "truncateHeadChars": {
       "type": "number",
@@ -54,7 +60,7 @@
       "type": "number",
       "title": "Retries on Gateway errors",
       "description": "Extra attempts per Jev request after a 429 or 5xx (the Gateway answers 503 at random), sent at once; 0 fails on the first error.",
-      "default": 8
+      "default": 12
     },
     "model": {
       "type": "string",

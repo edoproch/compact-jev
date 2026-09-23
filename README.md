@@ -35,12 +35,19 @@ The repository is both an npm package (`src/`) and a Claude Code plugin
 1. Every `tool_use` is paired with its `tool_result` by `tool_use_id`. Calls in
    the first message or in the newest `preserveRecentMessages` messages are
    pinned and never touched.
-2. The **state** sent to Jev is the whole conversation so far, oldest first,
-   with every tool result replaced by a short note (`ok, 4213 chars (omitted)`).
-   Tool inputs are included, texts are included, nothing is summarized.
-3. The state is fitted into `maxStateTokens` (8k by default) in stages, each
+2. The candidates are split into batches of at most `maxQuestionsPerRequest`
+   questions (20, two per call). Each batch gets a **state** of its own: every
+   message's text, oldest first, and only that batch's tool calls, each with
+   its input, an excerpt of its output (`outputExcerptChars`, 240: the first
+   two thirds from its start, the rest from its end, e.g.
+   `ok, 4213 chars: export function … […3973 chars…] … }`), and, when a later
+   call re-ran it or edited its file, a `later` note (`run again later as t14`,
+   `changed later by t9 (Edit)`). The goal defaults to the last three user
+   requests, leaving out slash-command echoes, task notifications and
+   interruptions. Nothing is summarized.
+3. Each state is fitted into `maxStateTokens` (8k by default) in stages, each
    applied only if the previous one was not enough: tool inputs truncated to
-   1000, then 200, then 60 characters; long texts abridged to head + tail,
+   1000, then 200, then 60 characters; output excerpts halved; long texts abridged to head + tail,
    oldest non-pinned messages first; old non-pinned messages collapsed to a
    `[… N chars omitted …]` note; old tool calls reduced to one line each
    (`t12 Read file_path=src/a.ts → ok 480ch`); old call-less messages left
@@ -48,16 +55,19 @@ The repository is both an npm package (`src/`) and a Claude Code plugin
    does not fit, compaction throws. Tokens are estimated without a tokenizer (a
    word per six letters, half a token per digit, ~one per other symbol),
    calibrated to land a little above the counts Jev reports.
-4. For every non-pinned call Jev gets two `boolean` questions: should the **call**
-   stay (knowing it was made, with its input, still matters), and should the
-   **result** stay verbatim (its contents are still needed and re-running the
-   tool would not do).
-5. Questions are split into as many requests as needed so state plus questions
-   stays under `maxRequestTokens` (25k by default) and holds at most
-   `maxQuestionsPerRequest` questions (40). Through AI Gateway, Jev answers 503
-   at random, far more often for large requests, so both are kept small and a
-   failed request is retried. The same full state is resent with every request; requests run
-   concurrently and their answers are merged.
+4. For every non-pinned call Jev gets two `boolean` questions, each one
+   judgment with `criteria` saying what true and false mean (as Jev's docs
+   ask): is the **call** a step the current task still builds on, and does
+   the current task still need the call's exact **output** (false when it is
+   unrelated, finished work, or re-read or re-run later). Without `criteria`
+   and output excerpts the answers came back flat, every result under 0.25;
+   with them, on labeled test conversations, outputs a task still needs score
+   0.55–0.9 and the rest mostly under 0.35.
+5. A batch also stays under `maxRequestTokens` (25k) with its state. Through
+   AI Gateway, Jev answers 503 at random, more often for large requests and at
+   some hours far more than others, so requests are kept small and a failed
+   one is retried at once, up to `retries` times. Requests run concurrently
+   and their answers are merged.
 6. Decisions per call, against `keepThreshold`:
    - `keepResult ≥ threshold` → keep call and result;
    - else `keepCall ≥ threshold` → keep the call, truncate the result to its
@@ -124,9 +134,10 @@ put it in a source file.
 | `preserveRecentMessages` | `6` | Newest messages never touched (the first is always kept) |
 | `maxStateTokens` | `8000` | Estimated token ceiling for the state |
 | `maxRequestTokens` | `25000` | Estimated ceiling for state plus one batch of questions |
-| `maxQuestionsPerRequest` | `40` | Questions (two per call) in one request at most |
+| `maxQuestionsPerRequest` | `20` | Questions (two per call) in one request at most |
 | `truncateHeadChars` | `300` | Characters of a dropped tool result retained before its note |
-| `retries` | `8` | Extra attempts per request after a 429 or 5xx, sent at once (the Gateway answers 503 at random) |
+| `outputExcerptChars` | `240` | Characters of each asked-about tool output Jev sees (start and end); `0` sends none |
+| `retries` | `12` | Extra attempts per request after a 429 or 5xx, sent at once (the Gateway answers 503 at random) |
 
 `result.stats` reports message and character counts before and after, the
 per-reason decision counts, the state size in estimated tokens, which fitting
@@ -197,10 +208,12 @@ from the repository root.
 
 ## Privacy
 
-Each `/compact-jev` sends the conversation's user and assistant text and every
-tool call's name and input (truncated to at most 1000 characters) to Vercel AI
-Gateway and on to TypeSafe AI, repeated in every batch request. Tool outputs
-are not sent, only their size and ok/error status.
+Each `/compact-jev` sends the conversation's user and assistant text, and for
+every candidate tool call its name, its input (at most 1000 characters) and an
+excerpt of its output (at most `outputExcerptChars`, 240 by default, from its
+start and end) to Vercel AI Gateway and on to TypeSafe AI. The text is repeated
+in every batch request. Set `outputExcerptChars` to `0` to send no tool output
+at all, only its size and ok/error status (Jev then judges far less well).
 
 ## Development
 

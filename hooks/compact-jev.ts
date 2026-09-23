@@ -60,6 +60,7 @@ export function resolveHookConfig(options: PluginOptions): HookConfig {
     'maxRequestTokens',
     'maxQuestionsPerRequest',
     'truncateHeadChars',
+    'outputExcerptChars',
     'retries',
   ] as const) {
     const value = options[key];
