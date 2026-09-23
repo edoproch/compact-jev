@@ -18,10 +18,11 @@ export const DEFAULT_OPTIONS: ResolvedCompactOptions = {
   goal: '',
   keepThreshold: 0.5,
   preserveRecentMessages: 6,
-  maxStateTokens: 20_000,
+  maxStateTokens: 8_000,
   maxRequestTokens: 25_000,
+  maxQuestionsPerRequest: 40,
   truncateHeadChars: 300,
-  retries: 4,
+  retries: 8,
 };
 
 /** Tokens the request envelope (`model`, key names) adds around state and questions. */
@@ -50,6 +51,10 @@ export function resolveOptions(options: CompactOptions = {}): ResolvedCompactOpt
       0,
       Math.floor(finite(options.truncateHeadChars, DEFAULT_OPTIONS.truncateHeadChars)),
     ),
+    maxQuestionsPerRequest: Math.max(
+      2,
+      Math.floor(finite(options.maxQuestionsPerRequest, DEFAULT_OPTIONS.maxQuestionsPerRequest)),
+    ),
     retries: Math.max(0, Math.floor(finite(options.retries, DEFAULT_OPTIONS.retries))),
   };
 }
@@ -70,20 +75,23 @@ export function questionsFor(call: ToolCall): JevQuestions {
 
 /**
  * Splits the candidate calls into batches whose questions, together with the
- * (always complete) state, fit one request.
+ * (always complete) state, fit one request, with at most
+ * `maxQuestionsPerRequest` questions (two per call) in each.
  */
 export function batchCalls(
   calls: readonly ToolCall[],
   stateTokens: number,
-  options: Pick<ResolvedCompactOptions, 'maxRequestTokens'>,
+  options: Pick<ResolvedCompactOptions, 'maxRequestTokens'> &
+    Partial<Pick<ResolvedCompactOptions, 'maxQuestionsPerRequest'>>,
 ): ToolCall[][] {
+  const maxCalls = Math.max(1, Math.floor((options.maxQuestionsPerRequest ?? Infinity) / 2));
   const budget = options.maxRequestTokens - stateTokens - REQUEST_OVERHEAD_TOKENS;
   const batches: ToolCall[][] = [];
   let current: ToolCall[] = [];
   let currentTokens = 0;
   for (const call of calls) {
     const tokens = estimateTokens(JSON.stringify(questionsFor(call)));
-    if (current.length > 0 && currentTokens + tokens > budget) {
+    if (current.length > 0 && (currentTokens + tokens > budget || current.length >= maxCalls)) {
       batches.push(current);
       current = [];
       currentTokens = 0;
@@ -124,8 +132,10 @@ async function askBatch(
   onRetry: () => void,
 ): Promise<Map<string, CallAnswer>> {
   const questions: JevQuestions = Object.assign({}, ...batch.map(questionsFor));
-  // The Gateway answers 503 at random (seen at 20-60% of identical requests),
-  // so a retryable failure is sent again at once, up to `retries` times.
+  // The Gateway answers 503 at random, more often the larger the request
+  // (measured on a real 270-message session: ~80% of ~10k-token requests
+  // pass, ~10% of ~16k+), and spacing attempts does not help, so a retryable
+  // failure is sent again at once, up to `retries` times.
   let left = retries;
   const ask = async (): Promise<Awaited<ReturnType<JevAsker['ask']>>> => {
     try {

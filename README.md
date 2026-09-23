@@ -38,7 +38,7 @@ The repository is both an npm package (`src/`) and a Claude Code plugin
 2. The **state** sent to Jev is the whole conversation so far, oldest first,
    with every tool result replaced by a short note (`ok, 4213 chars (omitted)`).
    Tool inputs are included, texts are included, nothing is summarized.
-3. The state is fitted into `maxStateTokens` (20k by default) in stages, each
+3. The state is fitted into `maxStateTokens` (8k by default) in stages, each
    applied only if the previous one was not enough: tool inputs truncated to
    1000, then 200, then 60 characters; long texts abridged to head + tail,
    oldest non-pinned messages first; old non-pinned messages collapsed to a
@@ -53,8 +53,10 @@ The repository is both an npm package (`src/`) and a Claude Code plugin
    **result** stay verbatim (its contents are still needed and re-running the
    tool would not do).
 5. Questions are split into as many requests as needed so state plus questions
-   stays under `maxRequestTokens` (25k by default, under the 35k context Jev
-   has on AI Gateway). The same full state is resent with every request; requests run
+   stays under `maxRequestTokens` (25k by default) and holds at most
+   `maxQuestionsPerRequest` questions (40). Through AI Gateway, Jev answers 503
+   at random, far more often for large requests, so both are kept small and a
+   failed request is retried. The same full state is resent with every request; requests run
    concurrently and their answers are merged.
 6. Decisions per call, against `keepThreshold`:
    - `keepResult ≥ threshold` → keep call and result;
@@ -120,10 +122,11 @@ put it in a source file.
 | `goal` | last 3 user prompts | Ongoing task description included in the state |
 | `keepThreshold` | `0.5` | Minimum keep probability for a call or result to stay |
 | `preserveRecentMessages` | `6` | Newest messages never touched (the first is always kept) |
-| `maxStateTokens` | `20000` | Estimated token ceiling for the state |
+| `maxStateTokens` | `8000` | Estimated token ceiling for the state |
 | `maxRequestTokens` | `25000` | Estimated ceiling for state plus one batch of questions |
+| `maxQuestionsPerRequest` | `40` | Questions (two per call) in one request at most |
 | `truncateHeadChars` | `300` | Characters of a dropped tool result retained before its note |
-| `retries` | `4` | Extra attempts per request after a 429 or 5xx, sent at once (the Gateway answers 503 at random) |
+| `retries` | `8` | Extra attempts per request after a 429 or 5xx, sent at once (the Gateway answers 503 at random) |
 
 `result.stats` reports message and character counts before and after, the
 per-reason decision counts, the state size in estimated tokens, which fitting

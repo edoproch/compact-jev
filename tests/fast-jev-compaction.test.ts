@@ -77,10 +77,11 @@ describe('options', () => {
     expect(resolveOptions()).toMatchObject({
       keepThreshold: 0.5,
       preserveRecentMessages: 6,
-      maxStateTokens: 20_000,
+      maxStateTokens: 8_000,
       maxRequestTokens: 25_000,
+      maxQuestionsPerRequest: 40,
       truncateHeadChars: 300,
-      retries: 4,
+      retries: 8,
     });
     expect(resolveOptions({
       keepThreshold: Number.NaN,
@@ -241,6 +242,12 @@ describe('question batching', () => {
     pinned: false,
   }));
   const options = { maxRequestTokens: 30_000 };
+
+  it('caps the questions in one request at maxQuestionsPerRequest', () => {
+    const batches = batchCalls(calls, 1000, { ...options, maxQuestionsPerRequest: 4 });
+    expect(batches.every((batch) => batch.length <= 2)).toBe(true);
+    expect(batches.flat()).toHaveLength(calls.length);
+  });
 
   it('puts everything in one request when it fits', () => {
     expect(batchCalls(calls, 1000, options)).toHaveLength(1);

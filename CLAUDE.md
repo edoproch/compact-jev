@@ -95,7 +95,7 @@ compact-jev/
 - **`hooks/compact-jev.ts`**: exports `register(on, options)` plus testable helpers.
   - Helpers: `resolveHookConfig`, `jevAsker` (over `$.http.fetch`), `toSessionMessages`, `compactSession`, `changedAnything`, `summarize`, `decisionLog`, `decisionLogLines`, and the `COMMAND` constant.
   - Hooks: `session.start` registers the command; `command.run` on `compact-jev` serves it; `session.compact` is gated.
-- **`.claude-plugin/plugin.json`**: `userConfig` options, namely `apiKey` (sensitive), `keepThreshold`, `preserveRecentMessages`, `maxStateTokens`, `maxRequestTokens`, `truncateHeadChars`, `retries` and `model`.
+- **`.claude-plugin/plugin.json`**: `userConfig` options, namely `apiKey` (sensitive), `keepThreshold`, `preserveRecentMessages`, `maxStateTokens`, `maxRequestTokens`, `maxQuestionsPerRequest`, `truncateHeadChars`, `retries` and `model`.
 - **`types/claude-code.d.ts`**: the reference for every `$` call and event shape. Grep it; do not read it whole. Regenerate it with `/plugin-types` after a Claude Code upgrade.
 
 ## Key architectural patterns
@@ -121,7 +121,7 @@ compact-jev/
   - There is no minimum-reduction threshold, by design.
 - **Handles:** messages the library returns unchanged are the engine's own objects, with their `handle`. Rebuilt ones have no handle, and the engine rebuilds them from `role`, `text` and the tool blocks. `toSessionMessages` maps by object identity.
 - **Wire format:** the Gateway evaluation API uses `type: 'boolean'` questions and answers `{ type: 'boolean', probability }`. This is not TypeSafe's native `noul`. Usage fields are camelCase (`inputTokens`).
-- **Retries:** the Gateway's Jev answers 503 at random (measured 2026-09-23: 1–3 of 5 identical requests, more often for large ones). `askBatch` in `src/compact.ts` resends a request at once on a `JevRequestError` with `retryable` (429/5xx), up to `retries` times, and counts them in `stats.retries`. No delay: the hook runtime has no `setTimeout`, and `$.clock.sleep` would eat the hook's budget.
+- **Request sizing and retries (Gateway reliability):** Jev through AI Gateway answers 503 ("Service temporarily unavailable") at random, and far more often for larger requests. Measured 2026-09-23 on a real 270-message session, 10 requests each: ~10k input tokens (8k state, 40 questions) pass 70–90%; ~12–14k (80–120 questions) ~45%; ~16k+ (160+ questions, or a 15–20k state) 10–35%. Tiny requests pass ~100%, parallel requests are no worse than sequential ones, and spacing attempts does not help. Hence the defaults: `maxStateTokens` 8000, `maxQuestionsPerRequest` 40, `retries` 8 (immediate; `askBatch` resends a `JevRequestError` with `retryable`, i.e. 429/5xx, and counts them in `stats.retries`). With them, 10/10 end-to-end compactions of that session succeeded in 1–3 s with 1–4 retries, and Jev's decisions matched a 20k-state run 116/116. Upstream's 25k/30k (tuned for TypeSafe's own 32k API) failed on every attempt.
 - **Decisions:** `keepResult ≥ τ` keeps everything; otherwise `keepCall ≥ τ` truncates the result to `truncateHeadChars` plus a note (only when the result is longer than head + 120); otherwise the call and its result are removed.
 
 ## Common workflows
@@ -166,10 +166,11 @@ compact-jev/
 - **Defaults:**
   - `keepThreshold` 0.5
   - `preserveRecentMessages` 6
-  - `maxStateTokens` 20000
-  - `maxRequestTokens` 25000. Jev has a 35k context on AI Gateway; the 25k/30k of TypeSafe's own API (upstream's defaults) got a 503 on every attempt for a ~108k-char state, which the Gateway reports as "Service temporarily unavailable"
+  - `maxStateTokens` 8000
+  - `maxRequestTokens` 25000
+  - `maxQuestionsPerRequest` 40
   - `truncateHeadChars` 300
-  - `retries` 4
+  - `retries` 8
   - `model` `typesafe-ai/jev`
 - **Install:** `claude plugin marketplace add edoproch/compact-jev`, then `claude plugin install compact-jev@compact-jev`.
 - **Privacy:** every run sends all user and assistant text and the tool inputs (at most 1000 characters each) to the Gateway and on to TypeSafe. Tool outputs are not sent.

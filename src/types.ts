@@ -99,13 +99,15 @@ export interface CompactOptions {
   keepThreshold?: number;
   /** Newest messages never touched (the first message is always kept). Default 6. */
   preserveRecentMessages?: number;
-  /** Estimated token ceiling for the state. Default 20000. */
+  /** Estimated token ceiling for the state. Default 8000. */
   maxStateTokens?: number;
   /** Estimated token ceiling for state plus one batch of questions. Default 25000. */
   maxRequestTokens?: number;
+  /** Questions (two per tool call) in one request at most. Default 40. */
+  maxQuestionsPerRequest?: number;
   /** Characters of a dropped tool result to retain. Default 300. */
   truncateHeadChars?: number;
-  /** Extra attempts per request after a 429 or 5xx, sent at once. Default 4. */
+  /** Extra attempts per request after a 429 or 5xx, sent at once. Default 8. */
   retries?: number;
 }
 
@@ -115,6 +117,7 @@ export interface ResolvedCompactOptions {
   preserveRecentMessages: number;
   maxStateTokens: number;
   maxRequestTokens: number;
+  maxQuestionsPerRequest: number;
   truncateHeadChars: number;
   retries: number;
 }
