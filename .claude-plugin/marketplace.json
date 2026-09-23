@@ -9,7 +9,7 @@
       "name": "compact-jev",
       "source": "./",
       "description": "/compact-jev: Jev-guided verbatim compaction through Vercel AI Gateway, separate from /compact.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "license": "MIT"
     }
   ]

@@ -156,6 +156,7 @@ function load(options: Record<string, unknown> = { preserveRecentMessages: 1 }):
   const hooks: Hooks = new Map();
   const on = (pattern: string, matcherOrHook: unknown, hook?: unknown) => {
     hooks.set(pattern, (hook ?? matcherOrHook) as Handler);
+    return { catch: (handler: Handler) => void hooks.set(`${pattern}:catch`, handler) };
   };
   register(on as never, options as never);
   return hooks;
@@ -183,7 +184,16 @@ function engine(
     compactCalls: 0,
   };
   const timers: Array<() => void> = [];
+  // Core: like Claude Code, raises the classic PreCompact before summarizing
+  // and answers `{ skip }` when a hook blocks it.
   const next = async () => {
+    const preCompact = hooks.get('classic.PreCompact') as unknown as (
+      $: unknown,
+      e: unknown,
+      next: (e: unknown) => unknown,
+    ) => { block?: string };
+    const answer = preCompact($, { hook_event_name: 'PreCompact', trigger: 'manual' }, () => ({}));
+    if (answer.block) return { skip: answer.block };
     state.coreRuns += 1;
     return BUILT_IN_SUMMARY;
   };
@@ -240,7 +250,13 @@ function engine(
 describe('the /compact-jev plugin', () => {
   it('registers /compact-jev at session start and nothing on turn.complete', async () => {
     const hooks = load();
-    expect([...hooks.keys()].sort()).toEqual(['command.run', 'session.compact', 'session.start']);
+    expect([...hooks.keys()].sort()).toEqual([
+      'classic.PreCompact',
+      'command.run',
+      'session.compact',
+      'session.compact:catch',
+      'session.start',
+    ]);
     const { $, state } = engine(hooks, jevFetch(() => 0.9));
     let nexted = false;
     await (hooks.get('session.start') as unknown as ($: unknown, e: unknown, n: () => unknown) => Promise<unknown>)(
@@ -315,14 +331,38 @@ describe('the /compact-jev plugin', () => {
     for (const run of [keepAll, failing, keyless]) expect(run.state.coreRuns).toBe(0);
   });
 
-  it('warns instead of saying done when Claude Code compacted without the hook', async () => {
+  it('blocks the built-in summary if Claude Code reaches it during /compact-jev', async () => {
     const hooks = load();
-    // A later hook in the chain would never be reached if the engine skipped ours;
-    // simulate that by removing the plugin's session.compact hook.
+    // As if the engine skipped the plugin's session.compact hook (a wrong
+    // shape, say) and went straight to core.
     hooks.set('session.compact', ((_$: unknown, _e: unknown, next: () => unknown) => next()) as never);
     const { state, runCommand } = engine(hooks, jevFetch(() => 0.1));
-    expect((await runCommand()).text).toBe('warning: Claude Code compacted without Jev (its built-in summary ran)');
-    expect(state.fetches).toBe(0);
+    expect((await runCommand()).text).toBe(
+      'conversation left as is (/compact-jev is running; the built-in summary is disabled for it)',
+    );
+    expect(state.coreRuns).toBe(0);
+    expect(state.logs).toContain("blocked Claude Code's built-in compaction during /compact-jev");
+  });
+
+  it('lets the built-in summary run for /compact outside a /compact-jev run', async () => {
+    const { state, compactEvent } = engine(load(), jevFetch(() => 0.1));
+    expect(await compactEvent('manual')).toBe(BUILT_IN_SUMMARY);
+    expect(state.coreRuns).toBe(1);
+  });
+
+  it('answers a skip when the Jev hook throws or times out during a run, and nothing otherwise', async () => {
+    const hooks = load();
+    const caught = hooks.get('session.compact:catch') as unknown as (
+      $: unknown,
+      e: unknown,
+      next: { error: { kind: string; message?: string } },
+    ) => { skip?: string } | undefined;
+    const timeout = { error: { kind: 'timeout' } };
+    expect(caught({}, {}, timeout)).toBeUndefined();
+    // Start a run whose compaction the engine then abandons with a timeout.
+    hooks.set('session.compact', (($: unknown) => caught($, {}, timeout)) as never);
+    const { runCommand } = engine(hooks, jevFetch(() => 0.1));
+    expect((await runCommand()).text).toBe('conversation left as is (the Jev hook failed: timeout)');
   });
 
   it('sends the text after /compact-jev as the goal, over AI Gateway', async () => {

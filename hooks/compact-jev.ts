@@ -313,6 +313,15 @@ export const register: Register = (on: On, options: PluginOptions) => {
     return { text: 'compacting with Jev…' };
   });
 
+  // While /compact-jev runs, Claude Code's own summarizer must never run.
+  // If it is reached anyway (our session.compact hook skipped, a wrong shape,
+  // a failure), it raises the classic PreCompact first: veto it there.
+  on('classic.PreCompact', ($, event, next) => {
+    if (!pending) return next(event);
+    $.ui.log('blocked Claude Code\'s built-in compaction during /compact-jev');
+    return { block: `/${COMMAND} is running; the built-in summary is disabled for it` };
+  });
+
   on('session.compact', async ($, event, next) => {
     const run = pending;
     // Gate on the pending run only: a `$.session.compact()` started from the
@@ -339,7 +348,18 @@ export const register: Register = (on: On, options: PluginOptions) => {
       run.outcome = `conversation left as is (${errorText(error)})`;
       return { skip: errorText(error) };
     }
-  });
+  })
+    // A hook that throws or overruns its budget would otherwise be skipped and
+    // core would summarize in its place; during a run, answer with a skip.
+    .catch((_$, _event, next) => {
+      const run = pending;
+      if (!run) return undefined;
+      run.handled = true;
+      run.outcome ??= `conversation left as is (the Jev hook failed: ${next.error.kind}${
+        next.error.message ? `, ${next.error.message}` : ''
+      })`;
+      return { skip: run.outcome };
+    });
 };
 
 export { resolveOptions };

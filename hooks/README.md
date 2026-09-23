@@ -21,8 +21,13 @@ plugin folder is the repository root, so the hook imports it directly):
   conversation (no `agentId`). It does not check the trigger: on 2.1.280 a
   compaction started from the command's timer arrives as `manual`, not
   `plugin`. Anything outside a pending run goes to `next(event)` untouched.
-  If Claude Code compacts without reaching this hook, the command warns that
-  the built-in summary ran instead of reporting success.
+- `classic.PreCompact` blocks Claude Code's own summarizer while a run is
+  pending. So if the engine ever reaches core during `/compact-jev` (the
+  `session.compact` hook skipped for a wrong shape, say), the summary is
+  vetoed and the conversation stays as it is. Outside a run it passes.
+- The `session.compact` registration has a `.catch`: if the hook throws or
+  overruns its budget during a run, the handler answers `{ skip }` in its
+  place instead of letting core summarize.
 
 During a run the hook reads the AI Gateway key, hands the transcript to the
 library (which calls `POST https://ai-gateway.vercel.sh/v1/evaluate`, model
