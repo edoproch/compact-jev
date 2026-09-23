@@ -24,7 +24,9 @@ Differences from upstream:
 
 - Claude Code 2.1.274 or later (`claude --version`).
 - A [Vercel AI Gateway](https://vercel.com/ai-gateway) API key. Jev
-  (`typesafe-ai/jev`) is billed to that Gateway account.
+  (`typesafe-ai/jev`) is billed to that Gateway account. Every request
+  requires zero data retention, which Vercel documents for Pro and
+  Enterprise teams (see [Privacy](#privacy)).
 - Read access to this repository on GitHub while it is private (see
   [Private repository access](#private-repository-access)).
 
@@ -122,6 +124,9 @@ edit its configuration. The options are listed under [Options](#options).
 - **`conversation left as is (Jev request failed (503) …)`**: the Gateway
   sometimes answers 503 to Jev. Each request is already retried 12 times, so
   run the command again a minute later.
+- **`conversation left as is (Jev request failed (400) … no_providers_available …)`**:
+  the Gateway could not route Jev under zero data retention and no prompt
+  training (see [Privacy](#privacy)). The plugin never retries without them.
 - **`conversation left as is (AI_GATEWAY_API_KEY is not configured)`**: set `apiKey` with `/plugin` or
   export `AI_GATEWAY_API_KEY`.
 - Run `claude --debug` to see the per-call probabilities in `decisions:` log
@@ -319,6 +324,17 @@ excerpt of its output (at most `outputExcerptChars`, 240 by default, from its
 start and end) to Vercel AI Gateway and on to TypeSafe AI. The text is repeated
 in every batch request. Set `outputExcerptChars` to `0` to send no tool output
 at all, only its size and ok/error status (Jev then judges far less well).
+
+Every request asks AI Gateway for **zero data retention** and **no prompt
+training** (`providerOptions.gateway.zeroDataRetention` and
+`disallowPromptTraining`, both `true`, fixed in `src/request.ts` with no option
+to turn them off). The Gateway then routes Jev only to a provider that meets
+both, which TypeSafe AI does, and refuses the request with a 400
+`no_providers_available` otherwise, so the text is never sent under weaker
+terms. Vercel documents per-request ZDR as available on Pro and Enterprise
+teams at no extra cost. The routing metadata of each response confirms it
+(`ZDR requested: all 1 attempts support ZDR … Disallow prompt training
+requested`).
 
 ## Development
 

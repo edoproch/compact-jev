@@ -4,6 +4,17 @@ import type { JevAnswer, JevQuestions, JevResponse, JevState } from './types.js'
 export const EVALUATE_URL = 'https://ai-gateway.vercel.sh/v1/evaluate';
 export const DEFAULT_MODEL = 'typesafe-ai/jev';
 
+/**
+ * Sent with every request, not configurable: AI Gateway routes it only to
+ * providers with a zero-data-retention agreement that do not train on
+ * prompts (TypeSafe AI has both), and fails it with a 400
+ * `no_providers_available` otherwise. The response's routing
+ * `planningReasoning` says `ZDR requested: all 1 attempts support ZDR`.
+ */
+export const PROVIDER_OPTIONS = {
+  gateway: { zeroDataRetention: true, disallowPromptTraining: true },
+} as const;
+
 export interface JevRequest {
   url: string;
   method: 'POST';
@@ -32,6 +43,7 @@ export function buildJevRequest(
       model: params.model ?? DEFAULT_MODEL,
       state,
       questions,
+      providerOptions: PROVIDER_OPTIONS,
     }),
   };
 }

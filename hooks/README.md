@@ -37,7 +37,8 @@ plugin folder is the repository root, so the hook imports it directly):
 
 During a run the hook reads the AI Gateway key, hands the transcript to the
 library (which calls `POST https://ai-gateway.vercel.sh/v1/evaluate`, model
-`typesafe-ai/jev`, through `$.http.fetch`) and maps the result back onto
+`typesafe-ai/jev`, through `$.http.fetch`, every request requiring zero data
+retention and no prompt training) and maps the result back onto
 session messages. Unchanged messages keep their engine `handle`; rebuilt ones
 don't.
 

@@ -120,6 +120,9 @@ describe('compactSession', () => {
     );
     expect(bodies).toHaveLength(1);
     expect(JSON.parse(bodies[0]!).model).toBe('jev-x');
+    expect(JSON.parse(bodies[0]!).providerOptions).toEqual({
+      gateway: { zeroDataRetention: true, disallowPromptTraining: true },
+    });
     expect(output.decisions.map((d) => d.action)).toEqual(['drop_call', 'keep']);
     expect(messages.map((m) => m.handle)).toEqual(['h-0', 'h-tool-2', 'r-tool-2', 'h-5', 'h-6']);
     expect(summarize(output)).toMatch(/^\d+% reduction; 1 kept, 1 call_dropped; state ~\d+ tokens \(full\) in 1 request\(s\)$/);

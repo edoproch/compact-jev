@@ -546,6 +546,7 @@ describe('HTTP client', () => {
       model: 'typesafe-ai/jev',
       state: { a: 1 },
       questions: { q: { type: 'boolean', instructions: 'x' } },
+      providerOptions: { gateway: { zeroDataRetention: true, disallowPromptTraining: true } },
     });
   });
 

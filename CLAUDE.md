@@ -86,7 +86,7 @@ compact-jev/
   - Decisions: `decideCall` chooses keep, `drop_result` (truncate the head) or `drop_call`, using `keepThreshold`; `applyDecisions` rebuilds the messages.
   - Entry points: `compact(messages, asker, options)` is the main one; `reductionRatio` is a helper.
 - **`request.ts`**: the HTTP shape, with no I/O.
-  - Constants: `EVALUATE_URL`, `DEFAULT_MODEL`.
+  - Constants: `EVALUATE_URL`, `DEFAULT_MODEL`, and `PROVIDER_OPTIONS`, which every request body carries: `providerOptions.gateway` with `zeroDataRetention: true` and `disallowPromptTraining: true`. It is fixed on purpose, with no option to turn it off.
   - Functions: `buildJevRequest`, `parseJevResponse` (throws `JevRequestError` with `status` and `retryable` on non-2xx), and `probabilityAnswer`, which extracts one boolean answer.
 - **`client.ts`**: `JevClient` implements `JevAsker` over `fetch`. The key comes from the option or from `AI_GATEWAY_API_KEY`, and the client is Node-only.
 - **`messages.ts`**: `compactMessages(messages, opts)` is `compact` with a `JevClient`.
@@ -181,4 +181,4 @@ compact-jev/
   - `retries` 12
   - `model` `typesafe-ai/jev`
 - **Install:** `claude plugin marketplace add edoproch/compact-jev`, then `claude plugin install compact-jev@compact-jev`.
-- **Privacy:** every run sends all user and assistant text, the tool inputs (at most 1000 characters each) and an excerpt of each candidate tool output (at most `outputExcerptChars`, 240) to the Gateway and on to TypeSafe. `outputExcerptChars: 0` sends no output.
+- **Privacy:** every run sends all user and assistant text, the tool inputs (at most 1000 characters each) and an excerpt of each candidate tool output (at most `outputExcerptChars`, 240) to the Gateway and on to TypeSafe. `outputExcerptChars: 0` sends no output. Every request requires zero data retention and no prompt training (`PROVIDER_OPTIONS`); the Gateway confirms it in `providerMetadata.gateway.routing.planningReasoning` (`ZDR requested: all 1 attempts support ZDR … Disallow prompt training requested`). A provider that cannot meet both makes the Gateway answer 400 `no_providers_available`, which is not retried.
