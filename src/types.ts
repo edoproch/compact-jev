@@ -60,7 +60,8 @@ export interface CallDecision extends CallAnswer {
   id: string;
   tool: string;
   action: CallAction;
-  reason: 'pinned' | 'kept' | 'result_dropped' | 'call_dropped';
+  /** `repeated`: kept by Jev, but a later identical call's output stays, so this one is truncated. */
+  reason: 'pinned' | 'kept' | 'result_dropped' | 'call_dropped' | 'repeated';
 }
 
 export interface HistoryToolCall {
@@ -139,6 +140,7 @@ export interface CompactResult {
     charsAfter: number;
     calls: number;
     kept: number;
+    /** Results truncated, `repeated` ones included. */
     resultsDropped: number;
     callsDropped: number;
     pinned: number;

@@ -146,6 +146,37 @@ export function decideCall(
   return { ...base, action: 'drop_call', reason: 'call_dropped' };
 }
 
+function sameCall(a: ToolCall, b: ToolCall): boolean {
+  if (a.tool !== b.tool) return false;
+  try {
+    return JSON.stringify(a.input) === JSON.stringify(b.input);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A kept output that a later identical call (same tool, same input) repeats,
+ * while that later output stays too, is a stale copy: it is truncated like a
+ * dropped result. Jev keeps both when the task needs the contents; spotting
+ * the repeat is indirection it handles poorly (docs.typesafe.ai jaggedness).
+ */
+export function dropRepeats(
+  decisions: readonly CallDecision[],
+  calls: readonly ToolCall[],
+): CallDecision[] {
+  const byId = new Map(calls.map((call) => [call.id, call]));
+  return decisions.map((decision, index) => {
+    if (decision.action !== 'keep' || decision.reason !== 'kept') return decision;
+    const call = byId.get(decision.id);
+    const repeated = decisions.slice(index + 1).some((later) => {
+      const other = byId.get(later.id);
+      return later.action === 'keep' && other !== undefined && call !== undefined && sameCall(call, other);
+    });
+    return repeated ? { ...decision, action: 'drop_result', reason: 'repeated' } : decision;
+  });
+}
+
 async function askBatch(
   asker: JevAsker,
   state: CompactionState,
@@ -334,8 +365,11 @@ export async function compact(
     for (const map of answered) for (const [id, answer] of map) answers.set(id, answer);
   }
 
-  const decisions = calls.map((call) =>
-    decideCall(call, answers.get(call.id) ?? { keepCall: 1, keepResult: 1 }, resolved),
+  const decisions = dropRepeats(
+    calls.map((call) =>
+      decideCall(call, answers.get(call.id) ?? { keepCall: 1, keepResult: 1 }, resolved),
+    ),
+    calls,
   );
   const kept = applyDecisions(
     messages,
@@ -353,7 +387,7 @@ export async function compact(
       charsAfter: kept.reduce((sum, message) => sum + messageChars(message), 0),
       calls: calls.length,
       kept: count(decisions, 'kept'),
-      resultsDropped: count(decisions, 'result_dropped'),
+      resultsDropped: count(decisions, 'result_dropped') + count(decisions, 'repeated'),
       callsDropped: count(decisions, 'call_dropped'),
       pinned: count(decisions, 'pinned'),
       stateTokens: fitted.tokens,

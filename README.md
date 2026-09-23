@@ -72,7 +72,11 @@ The repository is both an npm package (`src/`) and a Claude Code plugin
    - `keepResult ≥ threshold` → keep call and result;
    - else `keepCall ≥ threshold` → keep the call, truncate the result to its
      first `truncateHeadChars` characters plus a one-line note;
-   - else → remove the call together with its result.
+   - else → remove the call together with its result;
+   - then a kept output that a later identical call (same tool, same input)
+     repeats, while that later output stays too, is truncated as well
+     (reason `repeated`): Jev keeps both copies when the task needs the
+     contents, since spotting a repeat is the kind of indirection it is weak at.
 7. The message list is rebuilt: a message that loses all its content is
    removed, untouched messages are returned as the same objects, and no result
    is ever left without its call.

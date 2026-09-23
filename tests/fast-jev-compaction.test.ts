@@ -304,6 +304,29 @@ describe('questions', () => {
   });
 });
 
+describe('repeated calls', () => {
+  it('truncates a kept output that a later identical call keeps too', async () => {
+    const messages = [
+      message('user', 'start'),
+      call('r1', 'Read', { file_path: 'src/a.ts' }, fileA),
+      result('r1', fileA),
+      call('r2', 'Read', { file_path: 'src/b.ts' }, fileB),
+      result('r2', fileB),
+      message('assistant', 'reading a.ts again'),
+      call('r3', 'Read', { file_path: 'src/a.ts' }, fileA),
+      result('r3', fileA),
+      message('user', 'go on'),
+    ];
+    const output = await compact(messages, fakeJev(() => 0.9), { preserveRecentMessages: 2 });
+    expect(output.decisions.map((d) => [d.id, d.action, d.reason])).toEqual([
+      ['t1', 'drop_result', 'repeated'],
+      ['t2', 'keep', 'kept'],
+      ['t3', 'keep', 'pinned'],
+    ]);
+    expect(output.stats.resultsDropped).toBe(1);
+  });
+});
+
 describe('question batching', () => {
   const calls: ToolCall[] = Array.from({ length: 10 }, (_, i) => ({
     id: `t${i + 1}`,
