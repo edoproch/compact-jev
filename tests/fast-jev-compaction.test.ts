@@ -381,7 +381,8 @@ describe('compact', () => {
 
   it('rejects malformed answers', async () => {
     const broken: JevAsker = {
-      ask: async () => ({ answers: { call_t1: { probability: 0.5 }, result_t1: { noul: 0.5 } } }),
+      // result_t1 uses TypeSafe's native `noul` field, which the Gateway API does not return.
+      ask: async () => ({ answers: { call_t1: { probability: 0.5 }, result_t1: { noul: 0.5 } } }) as never,
     };
     await expect(compact(transcript(), broken, { preserveRecentMessages: 1 })).rejects.toThrow(
       /Invalid Jev answer/,

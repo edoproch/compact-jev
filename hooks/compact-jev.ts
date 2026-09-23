@@ -5,7 +5,6 @@ import type {
   SessionMessage,
   ToolResultSummary,
   ToolUseSummary,
-  TurnCompleteInput,
 } from 'claude-code';
 
 import { compact, reductionRatio, resolveOptions } from '../src/compact.js';
@@ -19,9 +18,10 @@ import type {
   ToolUse,
 } from '../src/types.js';
 
+/** The slash command this plugin serves: `/compact-jev [goal]`. */
+export const COMMAND = 'compact-jev';
+
 const HOOK_DEFAULTS = {
-  compactAtPercent: 60,
-  minReductionRatio: 0.25,
   model: DEFAULT_MODEL,
 };
 
@@ -42,15 +42,8 @@ export type HookFetch = (url: string, init?: HookFetchInit) => Promise<HookFetch
 
 export type HookConfig = CompactOptions & {
   apiKey?: string;
-  compactAtPercent: number;
-  minReductionRatio: number;
   model: string;
 };
-
-function optionNumber(options: PluginOptions, key: string, fallback: number): number {
-  const value = options[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-}
 
 function optionString(options: PluginOptions, key: string): string | undefined {
   const value = options[key];
@@ -72,22 +65,14 @@ export function resolveHookConfig(options: PluginOptions): HookConfig {
   }
   const config: HookConfig = {
     ...numbers,
-    compactAtPercent: optionNumber(options, 'compactAtPercent', HOOK_DEFAULTS.compactAtPercent),
-    minReductionRatio: optionNumber(
-      options,
-      'minReductionRatio',
-      HOOK_DEFAULTS.minReductionRatio,
-    ),
     model: optionString(options, 'model') ?? HOOK_DEFAULTS.model,
   };
   const apiKey = optionString(options, 'apiKey');
   if (apiKey) config.apiKey = apiKey;
-  const goal = optionString(options, 'goal');
-  if (goal) config.goal = goal;
   return config;
 }
 
-/** A `JevAsker` over the engine's `$.http.fetch`. */
+/** A `JevAsker` over the engine's `$.http.fetch`, posting to AI Gateway. */
 export function jevAsker(fetchFn: HookFetch, apiKey: string, model: string): JevAsker {
   return {
     async ask(state, questions) {
@@ -167,9 +152,15 @@ export async function compactSession(
   config: HookConfig,
   fetchFn: HookFetch,
 ): Promise<SessionCompaction> {
-  if (!config.apiKey) throw new Error('TYPESAFE_API_KEY is not configured');
+  if (!config.apiKey) throw new Error('AI_GATEWAY_API_KEY is not configured');
   const result = await compact(messages, jevAsker(fetchFn, config.apiKey, config.model), config);
   return { result, messages: toSessionMessages(messages, result.messages) };
+}
+
+/** Whether applying the decisions removed or shortened anything at all. */
+export function changedAnything(result: CompactResult): boolean {
+  const { stats } = result;
+  return stats.messagesAfter !== stats.messagesBefore || stats.charsAfter !== stats.charsBefore;
 }
 
 function percent(ratio: number): string {
@@ -232,78 +223,82 @@ async function getApiKey(
   config: HookConfig,
 ): Promise<string | undefined> {
   if (config.apiKey) return config.apiKey;
-  const fromEnv = await $.env.get('TYPESAFE_API_KEY');
+  const fromEnv = await $.env.get('AI_GATEWAY_API_KEY');
   if (fromEnv) return fromEnv;
   const settings = await $.settings.read();
   const env = settings['env'];
   if (env && typeof env === 'object') {
-    const value = (env as Record<string, unknown>)['TYPESAFE_API_KEY'];
+    const value = (env as Record<string, unknown>)['AI_GATEWAY_API_KEY'];
     if (typeof value === 'string' && value) return value;
   }
   return undefined;
 }
 
-function notify(
-  $: {
-    ui: {
-      log: (text: string) => void;
-      toast: (text: string, options?: { timeoutMs?: number }) => void;
-    };
-  },
-  text: string,
-): void {
-  $.ui.log(text);
-  $.ui.toast(text, { timeoutMs: 15_000 });
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
+
+/** One `/compact-jev` run: the goal typed after the command, and what it ended with. */
+type PendingRun = { goal?: string; outcome?: string };
 
 export const register: Register = (on: On, options: PluginOptions) => {
   const configured = resolveHookConfig(options);
-  let compacting = false;
+  // Set only while `/compact-jev` runs its own compaction. Every other
+  // compaction (`/compact`, auto-compaction, precompute, other plugins) finds
+  // it unset and goes to Claude Code untouched.
+  let pending: PendingRun | undefined;
+
+  on('session.start', async ($, event, next) => {
+    try {
+      await $.command.register({
+        name: COMMAND,
+        description:
+          'Compact with Jev: drop or truncate stale tool calls and results, keep everything else verbatim, no summary.',
+        argumentHint: '[goal]',
+      });
+    } catch (error) {
+      $.ui.log(`/${COMMAND} not registered (${errorText(error)})`);
+    }
+    return next(event);
+  });
+
+  on('command.run', { command: COMMAND }, async ($, event) => {
+    if (pending) return { text: `${COMMAND}: already running` };
+    const run: PendingRun = {};
+    const goal = event.args.trim();
+    if (goal) run.goal = goal;
+    pending = run;
+    try {
+      const { skip } = await $.session.compact();
+      return { text: run.outcome ?? (skip ? `${COMMAND}: ${skip}` : `${COMMAND}: done`) };
+    } catch (error) {
+      return { text: `${COMMAND}: conversation left as is (${errorText(error)})` };
+    } finally {
+      pending = undefined;
+    }
+  });
 
   on('session.compact', async ($, event, next) => {
+    const run = pending;
+    if (!run || event.trigger !== 'plugin' || event.agentId !== undefined) return next(event);
     try {
-      const config = { ...configured, apiKey: await getApiKey($, configured) };
+      const config: HookConfig = { ...configured, apiKey: await getApiKey($, configured) };
+      if (run.goal) config.goal = run.goal;
       const { result, messages } = await compactSession(event.messages, config, async (url, init) => {
         const response = await $.http.fetch(url, init);
         return { status: response.status, ok: response.ok, text: response.text };
       });
       for (const line of decisionLogLines(result)) $.ui.log(line);
-      if (reductionRatio(result) < config.minReductionRatio) {
-        notify(
-          $,
-          `fallback to built-in summary (below ${percent(config.minReductionRatio)} minimum: ${summarize(result)})`,
-        );
-        return next(event);
+      if (!changedAnything(result)) {
+        run.outcome = `${COMMAND}: nothing to remove, conversation left as is (${summarize(result)})`;
+        return { skip: 'Jev kept every tool call and result' };
       }
-      notify(
-        $,
-        `kept ${messages.length}/${event.messages.length} messages, no summary (${summarize(result)})`,
-      );
+      run.outcome = `${COMMAND}: kept ${messages.length}/${event.messages.length} messages, no summary (${summarize(result)})`;
       return { messages };
     } catch (error) {
-      notify(
-        $,
-        `fallback to built-in summary (${error instanceof Error ? error.message : String(error)})`,
-      );
-      return next(event);
+      run.outcome = `${COMMAND}: conversation left as is (${errorText(error)})`;
+      return { skip: errorText(error) };
     }
-  });
-
-  on('turn.complete', async ($, event: TurnCompleteInput, next) => {
-    if (compacting) return next(event);
-    try {
-      const { context } = await $.session.usage();
-      if ((context.percent ?? 0) < configured.compactAtPercent) return next(event);
-      compacting = true;
-      await $.session.compact();
-    } catch (error) {
-      $.ui.log(
-        `auto-compact skipped (${error instanceof Error ? error.message : String(error)})`,
-      );
-    } finally {
-      compacting = false;
-    }
-    return next(event);
   });
 };
 

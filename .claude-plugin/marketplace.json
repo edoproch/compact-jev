@@ -1,15 +1,15 @@
 {
-  "name": "fast-jev-compaction",
+  "name": "compact-jev",
   "owner": {
-    "name": "tamaratran",
-    "url": "https://github.com/tamaratran"
+    "name": "edoproch",
+    "url": "https://github.com/edoproch"
   },
   "plugins": [
     {
-      "name": "fast-jev-compaction",
+      "name": "compact-jev",
       "source": "./",
-      "description": "Verbatim Jev-guided compaction for Claude Code sessions.",
-      "version": "0.3.0",
+      "description": "/compact-jev: Jev-guided verbatim compaction through Vercel AI Gateway, separate from /compact.",
+      "version": "0.4.0",
       "license": "MIT"
     }
   ]

@@ -1,9 +1,22 @@
-# fast-jev-compaction
+# compact-jev
 
-Claude Code plugin that replaces the compaction summary with Jev decisions:
-every tool call and result is scored in one fast request, stale ones are
-dropped or truncated, everything kept stays verbatim. Also usable as an npm
-library.
+A Claude Code plugin that adds a separate `/compact-jev` command. The command
+asks Jev, TypeSafe AI's System One model called through Vercel AI Gateway,
+which tool calls and results are stale, drops or truncates them, and keeps
+everything else verbatim. It never replaces `/compact` or Claude Code's
+automatic compaction. It is also usable as an npm library.
+
+A fork of [tamaratran/fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction).
+Differences from upstream:
+- Jev is called through Vercel AI Gateway's evaluation API
+  (`POST https://ai-gateway.vercel.sh/v1/evaluate`, model `typesafe-ai/jev`,
+  `AI_GATEWAY_API_KEY`), not TypeSafe's own endpoint.
+- It is its own slash command, `/compact-jev [goal]`. `/compact`,
+  auto-compaction, precompute and other plugins' compactions are left to
+  Claude Code untouched, and nothing compacts at a context percentage.
+- There is no minimum-reduction gate. Whatever Jev removes is applied, however
+  small. When nothing can be removed or Jev fails, the conversation stays as
+  it is; it never falls back to the built-in summary.
 
 ## What and why
 
@@ -15,8 +28,7 @@ showing it the whole conversation. User and assistant text stays verbatim and
 in order.
 
 The repository is both an npm package (`src/`) and a Claude Code plugin
-(`hooks/`, `.claude-plugin/`) that uses the package to replace Claude Code's
-built-in compaction summary with the original messages.
+(`hooks/`, `.claude-plugin/`) that uses the package to serve `/compact-jev`.
 
 ## How it works
 
@@ -36,7 +48,7 @@ built-in compaction summary with the original messages.
    does not fit, compaction throws. Tokens are estimated without a tokenizer (a
    word per six letters, half a token per digit, ~one per other symbol),
    calibrated to land a little above the counts Jev reports.
-4. For every non-pinned call Jev gets two `noul` questions: should the **call**
+4. For every non-pinned call Jev gets two `boolean` questions: should the **call**
    stay (knowing it was made, with its input, still matters), and should the
    **result** stay verbatim (its contents are still needed and re-running the
    tool would not do).
@@ -54,17 +66,18 @@ built-in compaction summary with the original messages.
    is ever left without its call.
 
 Jev failures, malformed answers, a missing key, or a history that cannot be
-fitted throw; the caller (or the Claude Code hook) decides what to fall back to.
+fitted throw. The caller decides what to do; the `/compact-jev` hook leaves
+the conversation as it is.
 
 ## Install and usage
 
 ```sh
-npm install fast-jev-compaction
-export TYPESAFE_API_KEY=...
+npm install compact-jev
+export AI_GATEWAY_API_KEY=...
 ```
 
 ```ts
-import { compactMessages, reductionRatio, type Message } from 'fast-jev-compaction';
+import { compactMessages, reductionRatio, type Message } from 'compact-jev';
 
 const transcript: Message[] = [
   { role: 'user', text: 'Fix the failing test. Never edit src/generated.', toolUses: [] },
@@ -93,16 +106,16 @@ method) and call `compact(messages, asker, options)`; `buildJevRequest` and
 The building blocks (`collectToolCalls`, `fitState`, `batchCalls`,
 `decideCall`, `applyDecisions`) are exported too.
 
-`apiKey` defaults to `process.env.TYPESAFE_API_KEY`. Never commit the key or
+`apiKey` defaults to `process.env.AI_GATEWAY_API_KEY`. Never commit the key or
 put it in a source file.
 
 ## Options
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `apiKey` | `TYPESAFE_API_KEY` | TypeSafe API key (`compactMessages`/`JevClient`) |
-| `model` | `jev-latest` | Jev model name |
-| `baseUrl` | `https://api.typesafe.ai/v1/systemone` | System One endpoint |
+| `apiKey` | `AI_GATEWAY_API_KEY` | Vercel AI Gateway API key (`compactMessages`/`JevClient`) |
+| `model` | `typesafe-ai/jev` | AI Gateway evaluation model id |
+| `baseUrl` | `https://ai-gateway.vercel.sh/v1/evaluate` | AI Gateway evaluation endpoint |
 | `fetch` | native `fetch` | Injectable fetch implementation for tests |
 | `goal` | last 3 user prompts | Ongoing task description included in the state |
 | `keepThreshold` | `0.5` | Minimum keep probability for a call or result to stay |
@@ -127,11 +140,25 @@ stage was needed, and the number of requests.
 
 ## Claude Code plugin
 
-The repository root is a Claude Code function-hook plugin: `hooks/fast-jev.ts`
-is a thin adapter that feeds `session.compact` transcripts through `src/` and
-falls back to Claude Code's built-in summary on errors or insufficient
-reduction. See [`hooks/README.md`](hooks/README.md) for configuration and the
-Claude Code 2.1.274 type reference.
+The repository root is a Claude Code function-hook plugin. `hooks/compact-jev.ts`
+is a thin adapter over `src/` with three hooks:
+
+- `session.start` registers the slash command `/compact-jev [goal]`.
+- `command.run` on `compact-jev` sets an in-memory flag and calls
+  `$.session.compact()`. The text after the command, if any, becomes Jev's
+  `goal`; otherwise the goal is the last 3 user prompts.
+- `session.compact` acts only while that flag is set, and only on the
+  `plugin` trigger for the main conversation. Every other compaction (`/compact`,
+  auto, precompute, subagents, other plugins) is passed to `next(event)`
+  untouched.
+
+While `/compact-jev` runs, the hook returns the pruned messages with no summary
+message whenever anything was removed or truncated. When Jev keeps everything,
+fails, or the key is missing, it returns `{ skip }` and the conversation stays
+as it is; Claude Code's summarizer is never called. The command prints the
+outcome, e.g. `compact-jev: kept N/M messages, no summary (…)`, and one or more
+`decisions:` log lines list each call's probabilities. See
+[`hooks/README.md`](hooks/README.md) for configuration.
 
 ### Install in Claude Code
 
@@ -139,28 +166,32 @@ Function hooks are an early-access Claude Code feature (2.1.274+), so the
 opt-in flag must be set wherever Claude Code runs, e.g. in `~/.claude/settings.json`:
 
 ```json
-{ "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1", "TYPESAFE_API_KEY": "<your key>" } }
+{ "env": { "CLAUDE_CODE_ENABLE_FUNCTION_HOOKS": "1" } }
 ```
 
-Then add this repository as a plugin marketplace and install the plugin,
-either from the shell or as slash commands inside a session:
+Then add this repository as a plugin marketplace and install the plugin:
 
 ```sh
-claude plugin marketplace add tamaratran/fast-jev-compaction
-claude plugin install fast-jev-compaction@fast-jev-compaction
+claude plugin marketplace add edoproch/compact-jev
+claude plugin install compact-jev@compact-jev
 ```
 
-The install prompts for the plugin options (API key, thresholds, `truncateHeadChars`,
-…); leave them at their defaults to use `TYPESAFE_API_KEY` from the environment.
-Restart Claude Code or run `/reload-plugins`. From then on `/compact` (and
-auto-compaction) goes through Jev: the toast reads
-`fast-jev-compaction: kept N/M messages, no summary (…)` when the pruned history
-replaced the built-in summary, or `fallback to built-in summary (…)` when Jev
-could not remove enough (short sessions, or when it fails).
+The install prompts for the plugin options. Put the AI Gateway key in the
+sensitive `apiKey` option; it is kept in secure storage. `AI_GATEWAY_API_KEY`
+in the environment also works, but an `env` entry in `settings.json` is
+exported to every Bash child and MCP server. Restart Claude Code or run
+`/reload-plugins`, then run `/compact-jev` (optionally `/compact-jev <goal>`)
+whenever you want a Jev compaction.
 
 To run from a checkout without installing: `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir .`
-from the repository root. No publishing step is required; the marketplace is
-just the repo's `.claude-plugin/marketplace.json`.
+from the repository root.
+
+## Privacy
+
+Each `/compact-jev` sends the conversation's user and assistant text and every
+tool call's name and input (truncated to at most 1000 characters) to Vercel AI
+Gateway and on to TypeSafe AI, repeated in every batch request. Tool outputs
+are not sent, only their size and ok/error status.
 
 ## Development
 
@@ -170,22 +201,18 @@ npm run typecheck        # library + hook
 npm test
 npm run build
 npm run validate:plugin  # claude plugin validate
-TYPESAFE_API_KEY="$(cat ~/.typesafe_key)" npm run demo
+AI_GATEWAY_API_KEY=... npm run demo
 ```
 
-The unit tests use a fake Jev and never contact TypeSafe. The demo is the live
-network check.
+The unit tests use a fake Jev and a stand-in engine, and never contact the
+Gateway. The demo is the live network check.
 
 ## Animated demo (macOS)
 
-`demo/JevDemo` is a small native SwiftUI app that plays a scripted, dramatized
-version of the compaction flow inside a Claude Code-style terminal: the tool
-calls of a canned transcript are scored, results and calls Jev lets go turn red
-and collapse away, and the rest stays verbatim. It never calls the API; it
-exists to be screen recorded.
+`demo/JevDemo` is the upstream SwiftUI screen-recording demo. It plays a
+scripted, dramatized compaction and never calls any API. It still shows the
+upstream naming.
 
 ```sh
 demo/JevDemo/build.sh   # builds demo/JevDemo/build/JevDemo.app and launches it
 ```
-
-Press space in the app to replay from the start.

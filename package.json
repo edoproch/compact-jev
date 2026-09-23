@@ -1,7 +1,7 @@
 {
-  "name": "fast-jev-compaction",
-  "version": "0.2.0",
-  "description": "Continuous, verbatim context compaction for LLM agents using TypeSafe's Jev model.",
+  "name": "compact-jev",
+  "version": "0.4.0",
+  "description": "Verbatim context compaction for LLM agents using Jev through Vercel AI Gateway.",
   "type": "module",
   "license": "MIT",
   "engines": {
