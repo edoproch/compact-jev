@@ -58,7 +58,7 @@ function fakeJev(answer: (name: string) => number, seen: Seen[] = []): JevAsker 
       seen.push({ state, questions: Object.keys(questions) });
       return {
         answers: Object.fromEntries(
-          Object.keys(questions).map((key) => [key, { type: 'noul' as const, noul: answer(key) }]),
+          Object.keys(questions).map((key) => [key, { type: 'boolean' as const, probability: answer(key) }]),
         ),
       };
     },
@@ -381,7 +381,7 @@ describe('compact', () => {
 
   it('rejects malformed answers', async () => {
     const broken: JevAsker = {
-      ask: async () => ({ answers: { call_t1: { noul: 0.5 } } }),
+      ask: async () => ({ answers: { call_t1: { probability: 0.5 }, result_t1: { noul: 0.5 } } }),
     };
     await expect(compact(transcript(), broken, { preserveRecentMessages: 1 })).rejects.toThrow(
       /Invalid Jev answer/,
@@ -390,16 +390,16 @@ describe('compact', () => {
 });
 
 describe('HTTP client', () => {
-  it('builds a System One request', () => {
+  it('builds an AI Gateway evaluation request', () => {
     const request = buildJevRequest({ apiKey: 'k' }, { a: 1 }, {
-      q: { type: 'noul', instructions: 'x' },
+      q: { type: 'boolean', instructions: 'x' },
     });
-    expect(request.url).toBe('https://api.typesafe.ai/v1/systemone');
+    expect(request.url).toBe('https://ai-gateway.vercel.sh/v1/evaluate');
     expect(request.headers.authorization).toBe('Bearer k');
     expect(JSON.parse(request.body)).toEqual({
-      model: 'jev-latest',
+      model: 'typesafe-ai/jev',
       state: { a: 1 },
-      questions: { q: { type: 'noul', instructions: 'x' } },
+      questions: { q: { type: 'boolean', instructions: 'x' } },
     });
   });
 
@@ -417,17 +417,17 @@ describe('HTTP client', () => {
       model: 'jev-test',
       fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
         bodies.push(String(init?.body));
-        return new Response(JSON.stringify({ answers: { q: { noul: 0.4 } } }), { status: 200 });
+        return new Response(JSON.stringify({ answers: { q: { type: 'boolean', probability: 0.4 } } }), { status: 200 });
       }) as typeof fetch,
     });
-    const response = await client.ask('state', { q: { type: 'noul', instructions: 'x' } });
-    expect(response.answers.q).toEqual({ noul: 0.4 });
+    const response = await client.ask('state', { q: { type: 'boolean', instructions: 'x' } });
+    expect(response.answers.q).toEqual({ type: 'boolean', probability: 0.4 });
     expect(JSON.parse(bodies[0]!).model).toBe('jev-test');
 
     const keyless = new JevClient({ apiKey: '' });
-    await expect(keyless.ask('s', {})).rejects.toThrow(/TYPESAFE_API_KEY/);
+    await expect(keyless.ask('s', {})).rejects.toThrow(/AI_GATEWAY_API_KEY/);
     await expect(
       compactMessages(transcript(), { apiKey: '', preserveRecentMessages: 1 }),
-    ).rejects.toThrow(/TYPESAFE_API_KEY/);
+    ).rejects.toThrow(/AI_GATEWAY_API_KEY/);
   });
 });

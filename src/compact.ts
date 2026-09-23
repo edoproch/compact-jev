@@ -1,4 +1,4 @@
-import { noulAnswer } from './request.js';
+import { probabilityAnswer } from './request.js';
 import { collectToolCalls, estimateTokens, fitState } from './state.js';
 import type {
   CallAnswer,
@@ -52,15 +52,15 @@ export function resolveOptions(options: CompactOptions = {}): ResolvedCompactOpt
   };
 }
 
-/** The two `noul` questions asked about one call: keep the call, keep its result. */
+/** The two `boolean` questions asked about one call: keep the call, keep its result. */
 export function questionsFor(call: ToolCall): JevQuestions {
   return {
     [`call_${call.id}`]: {
-      type: 'noul',
+      type: 'boolean',
       instructions: `Tool call ${call.id} (${call.tool}) should stay in the history: knowing this call was made, with its input, still matters for what the assistant does next`,
     },
     [`result_${call.id}`]: {
-      type: 'noul',
+      type: 'boolean',
       instructions: `The full output of tool call ${call.id} (${call.tool}, ${call.resultChars} chars) should stay in the history verbatim: the assistant still needs its contents and re-running the tool would not do`,
     },
   };
@@ -125,8 +125,8 @@ async function askBatch(
     batch.map((call) => [
       call.id,
       {
-        keepCall: noulAnswer(answers, `call_${call.id}`),
-        keepResult: noulAnswer(answers, `result_${call.id}`),
+        keepCall: probabilityAnswer(answers, `call_${call.id}`),
+        keepResult: probabilityAnswer(answers, `result_${call.id}`),
       },
     ]),
   );

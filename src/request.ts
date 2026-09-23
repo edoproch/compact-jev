@@ -1,7 +1,8 @@
 import type { JevAnswer, JevQuestions, JevResponse, JevState } from './types.js';
 
-export const SYSTEM_ONE_URL = 'https://api.typesafe.ai/v1/systemone';
-export const DEFAULT_MODEL = 'jev-latest';
+/** Vercel AI Gateway's evaluation endpoint, which serves Jev. */
+export const EVALUATE_URL = 'https://ai-gateway.vercel.sh/v1/evaluate';
+export const DEFAULT_MODEL = 'typesafe-ai/jev';
 
 export interface JevRequest {
   url: string;
@@ -21,7 +22,7 @@ export function buildJevRequest(
   questions: JevQuestions,
 ): JevRequest {
   return {
-    url: params.baseUrl ?? SYSTEM_ONE_URL,
+    url: params.baseUrl ?? EVALUATE_URL,
     method: 'POST',
     headers: {
       authorization: `Bearer ${params.apiKey}`,
@@ -62,19 +63,19 @@ export function parseJevResponse(
   return parsed as JevResponse;
 }
 
-/** The `noul` probability of one answer; throws when it is not there. */
-export function noulAnswer(
+/** The probability of one `boolean` answer; throws when it is not there. */
+export function probabilityAnswer(
   answers: Record<string, JevAnswer>,
   name: string,
 ): number {
   const answer = answers[name];
   if (
     !answer ||
-    !('noul' in answer) ||
-    typeof answer.noul !== 'number' ||
-    !Number.isFinite(answer.noul)
+    !('probability' in answer) ||
+    typeof answer.probability !== 'number' ||
+    !Number.isFinite(answer.probability)
   ) {
     throw new Error(`Invalid Jev answer for ${name}`);
   }
-  return answer.noul;
+  return answer.probability;
 }

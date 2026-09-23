@@ -141,8 +141,8 @@ export interface CompactResult {
 /** The `state` of a Jev request: a string or any JSON-serialisable object. */
 export type JevState = string | object;
 
-export interface NoulQuestion {
-  type: 'noul';
+export interface BooleanQuestion {
+  type: 'boolean';
   instructions: string;
   criteria?: {
     true?: string;
@@ -162,36 +162,34 @@ export interface ScoreQuestion {
   criteria: string[];
 }
 
-export type JevQuestion = NoulQuestion | ChoiceQuestion | ScoreQuestion;
+export type JevQuestion = BooleanQuestion | ChoiceQuestion | ScoreQuestion;
 export type JevQuestions = Record<string, JevQuestion>;
 
-export interface NoulAnswer {
-  type?: 'noul';
-  noul: number;
+export interface BooleanAnswer {
+  type?: 'boolean';
+  probability: number;
 }
 
 export interface ChoiceAnswer {
   type?: 'choice';
   choice: string;
-  confidence: number;
   probabilities: Record<string, number>;
 }
 
 export interface ScoreAnswer {
   type?: 'score';
   score: number;
-  confidence: number;
   probabilities: Record<string, number>;
 }
 
-export type JevAnswer = NoulAnswer | ChoiceAnswer | ScoreAnswer;
+export type JevAnswer = BooleanAnswer | ChoiceAnswer | ScoreAnswer;
 
 export interface JevResponse {
   model?: string;
   answers: Record<string, JevAnswer>;
   usage?: {
-    input_tokens?: number;
-    output_tokens?: number;
+    inputTokens?: number;
+    outputTokens?: number;
   };
   [key: string]: unknown;
 }

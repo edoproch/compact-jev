@@ -2,17 +2,17 @@ import { buildJevRequest, parseJevResponse } from './request.js';
 import type { JevAsker, JevQuestions, JevResponse, JevState } from './types.js';
 
 export interface JevClientOptions {
-  /** Defaults to `process.env.TYPESAFE_API_KEY`. */
+  /** AI Gateway key; defaults to `process.env.AI_GATEWAY_API_KEY`. */
   apiKey?: string;
-  /** Defaults to `jev-latest`. */
+  /** Defaults to `typesafe-ai/jev`. */
   model?: string;
-  /** Defaults to the System One endpoint. */
+  /** Defaults to AI Gateway's `/v1/evaluate` endpoint. */
   baseUrl?: string;
   /** Defaults to the global `fetch`. */
   fetch?: typeof fetch;
 }
 
-/** Asks Jev over HTTP with the global `fetch` (or an injected one). */
+/** Asks Jev through Vercel AI Gateway with the global `fetch` (or an injected one). */
 export class JevClient implements JevAsker {
   private readonly apiKey: string;
   private readonly model: string | undefined;
@@ -20,14 +20,14 @@ export class JevClient implements JevAsker {
   private readonly fetcher: typeof fetch;
 
   constructor(options: JevClientOptions = {}) {
-    this.apiKey = options.apiKey ?? process.env.TYPESAFE_API_KEY ?? '';
+    this.apiKey = options.apiKey ?? process.env.AI_GATEWAY_API_KEY ?? '';
     this.model = options.model;
     this.baseUrl = options.baseUrl;
     this.fetcher = options.fetch ?? fetch;
   }
 
   async ask(state: JevState, questions: JevQuestions): Promise<JevResponse> {
-    if (!this.apiKey) throw new Error('TYPESAFE_API_KEY is not configured');
+    if (!this.apiKey) throw new Error('AI_GATEWAY_API_KEY is not configured');
     const request = buildJevRequest(
       { apiKey: this.apiKey, model: this.model, baseUrl: this.baseUrl },
       state,
