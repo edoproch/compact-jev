@@ -105,7 +105,7 @@ compact-jev/
   - Inside `hooks/`, use `$.http.fetch`, `$.env.get` and `$.settings.read`; never `fetch`, `process.env` or npm packages.
   - `import type … from 'claude-code'` is erased at run time.
 - **Gating is what keeps the plugin from touching `/compact`.**
-  - `command.run` sets a closure variable, `pending`, and calls `$.session.compact()`.
+  - `command.run` sets a closure variable, `pending`, and schedules `$.session.compact()` with `$.clock.after`. Calling it directly inside the command.run hook is refused by the engine ("it would compact under the turn this hook is holding"). It retries while the session is busy, and reports the outcome with `ui.toast` and `ui.log`.
   - `session.compact` acts only if `pending` is set, `trigger === 'plugin'` and there is no `agentId`. Every other case must `return next(event)` untouched.
   - Do not add `turn.complete` or auto triggers; they would violate the product requirement.
 - **Outcomes never fall back to the summary.**

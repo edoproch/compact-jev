@@ -179,7 +179,10 @@ function engine(
     fetches: 0,
     coreRuns: 0,
     installed: undefined as { messages?: unknown[]; skip?: string } | undefined,
+    toasts: [] as string[],
+    compactCalls: 0,
   };
+  const timers: Array<() => void> = [];
   const next = async () => {
     state.coreRuns += 1;
     return BUILT_IN_SUMMARY;
@@ -192,7 +195,11 @@ function engine(
   const $ = {
     env: { get: async (name: string) => env[name] },
     settings: { read: async () => ({}) },
-    ui: { log: (text: string) => state.logs.push(text) },
+    ui: {
+      log: (text: string) => state.logs.push(text),
+      toast: (text: string) => state.toasts.push(text),
+    },
+    clock: { after: (_ms: number, fn: () => void) => void timers.push(fn) },
     http: {
       fetch: async (url: string, init?: { body?: string }) => {
         state.fetches += 1;
@@ -202,6 +209,11 @@ function engine(
     command: { register: async (spec: unknown) => state.registered.push(spec) },
     session: {
       compact: async () => {
+        // Like the real engine: refused while the command's own turn is held.
+        state.compactCalls += 1;
+        if (state.compactCalls === 1) {
+          throw new Error('session.compact: called from a command.run hook, it would compact under the turn');
+        }
         const out = await compactHook($, { trigger: 'plugin', messages: messages() }, next);
         state.installed = out;
         return out.messages ? out : { skip: out.skip };
@@ -209,11 +221,18 @@ function engine(
     },
   } as Record<string, unknown> & { session: { compact: () => Promise<unknown> } };
   const compactEvent = (trigger: string) => compactHook($, { trigger, messages: transcript() }, next);
-  const runCommand = (args = '') =>
-    (hooks.get('command.run') as unknown as ($: unknown, e: unknown) => Promise<{ text: string }>)($, {
-      command: COMMAND,
-      args,
-    });
+  /** Runs `/compact-jev`, then the timers it left, and answers the outcome it announced. */
+  const runCommand = async (args = '') => {
+    const { text: immediate } = await (
+      hooks.get('command.run') as unknown as ($: unknown, e: unknown) => Promise<{ text: string }>
+    )($, { command: COMMAND, args });
+    expect(immediate).toBe('compacting with Jev…');
+    while (timers.length > 0) {
+      timers.shift()!();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    return { text: state.toasts.at(-1) ?? '' };
+  };
   return { $, state, compactEvent, runCommand };
 }
 
@@ -252,7 +271,7 @@ describe('the /compact-jev plugin', () => {
     const installed = state.installed?.messages as Array<{ handle?: string; text: string }>;
     expect(installed.map((m) => m.handle)).toEqual(['h-0', 'h-tool-2', 'r-tool-2', 'h-5', 'h-6']);
     expect(installed.some((m) => m.text === 'built-in summary')).toBe(false);
-    expect(text).toMatch(/^compact-jev: kept 5\/7 messages, no summary \(\d+% reduction; 1 kept, 1 call_dropped/);
+    expect(text).toMatch(/^kept 5\/7 messages, no summary \(\d+% reduction; 1 kept, 1 call_dropped/);
     expect(state.logs[0]).toMatch(/^decisions: t1:Read:drop_call/);
   });
 
@@ -280,12 +299,12 @@ describe('the /compact-jev plugin', () => {
 
   it('keeps the conversation as is, never the built-in summary, when there is nothing to remove or Jev fails', async () => {
     const keepAll = engine(load(), jevFetch(() => 0.9));
-    expect((await keepAll.runCommand()).text).toMatch(/^compact-jev: nothing to remove, conversation left as is/);
+    expect((await keepAll.runCommand()).text).toMatch(/^nothing to remove, conversation left as is/);
     expect(keepAll.state.installed).toEqual({ skip: 'Jev kept every tool call and result' });
 
     const failing = engine(load(), async () => ({ status: 429, ok: false, text: 'rate limited' }));
     expect((await failing.runCommand()).text).toBe(
-      'compact-jev: conversation left as is (Jev request failed (429): rate limited)',
+      'conversation left as is (Jev request failed (429): rate limited)',
     );
     expect(failing.state.installed?.skip).toMatch(/429/);
 

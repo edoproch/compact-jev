@@ -234,6 +234,24 @@ async function getApiKey(
   return undefined;
 }
 
+/** Delay before the deferred compaction starts, and between retries while the session is busy. */
+const COMPACT_START_MS = 50;
+const COMPACT_RETRY_MS = 500;
+const COMPACT_RETRIES = 10;
+
+function notify(
+  $: {
+    ui: {
+      log: (text: string) => void;
+      toast: (text: string, options?: { timeoutMs?: number }) => void;
+    };
+  },
+  text: string,
+): void {
+  $.ui.log(text);
+  $.ui.toast(text, { timeoutMs: 15_000 });
+}
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -263,19 +281,30 @@ export const register: Register = (on: On, options: PluginOptions) => {
   });
 
   on('command.run', { command: COMMAND }, async ($, event) => {
-    if (pending) return { text: `${COMMAND}: already running` };
+    if (pending) return { text: 'already running' };
     const run: PendingRun = {};
     const goal = event.args.trim();
     if (goal) run.goal = goal;
     pending = run;
-    try {
-      const { skip } = await $.session.compact();
-      return { text: run.outcome ?? (skip ? `${COMMAND}: ${skip}` : `${COMMAND}: done`) };
-    } catch (error) {
-      return { text: `${COMMAND}: conversation left as is (${errorText(error)})` };
-    } finally {
-      pending = undefined;
-    }
+    // `$.session.compact()` is refused from inside this hook (the command's
+    // turn is still held), so the compaction starts from a timer once the
+    // command has returned, retrying while the session is still busy.
+    const attempt = async (left: number): Promise<void> => {
+      try {
+        const { skip } = await $.session.compact();
+        notify($, run.outcome ?? (skip ? `conversation left as is (${skip})` : 'done'));
+        pending = undefined;
+      } catch (error) {
+        if (left > 0 && !run.outcome) {
+          $.clock.after(COMPACT_RETRY_MS, () => void attempt(left - 1));
+          return;
+        }
+        notify($, run.outcome ?? `conversation left as is (${errorText(error)})`);
+        pending = undefined;
+      }
+    };
+    $.clock.after(COMPACT_START_MS, () => void attempt(COMPACT_RETRIES));
+    return { text: 'compacting with Jev…' };
   });
 
   on('session.compact', async ($, event, next) => {
@@ -290,13 +319,13 @@ export const register: Register = (on: On, options: PluginOptions) => {
       });
       for (const line of decisionLogLines(result)) $.ui.log(line);
       if (!changedAnything(result)) {
-        run.outcome = `${COMMAND}: nothing to remove, conversation left as is (${summarize(result)})`;
+        run.outcome = `nothing to remove, conversation left as is (${summarize(result)})`;
         return { skip: 'Jev kept every tool call and result' };
       }
-      run.outcome = `${COMMAND}: kept ${messages.length}/${event.messages.length} messages, no summary (${summarize(result)})`;
+      run.outcome = `kept ${messages.length}/${event.messages.length} messages, no summary (${summarize(result)})`;
       return { messages };
     } catch (error) {
-      run.outcome = `${COMMAND}: conversation left as is (${errorText(error)})`;
+      run.outcome = `conversation left as is (${errorText(error)})`;
       return { skip: errorText(error) };
     }
   });

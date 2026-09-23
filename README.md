@@ -144,8 +144,10 @@ The repository root is a Claude Code function-hook plugin. `hooks/compact-jev.ts
 is a thin adapter over `src/` with three hooks:
 
 - `session.start` registers the slash command `/compact-jev [goal]`.
-- `command.run` on `compact-jev` sets an in-memory flag and calls
-  `$.session.compact()`. The text after the command, if any, becomes Jev's
+- `command.run` on `compact-jev` sets an in-memory flag and schedules
+  `$.session.compact()` on a timer. The engine refuses that call from inside
+  the command's own hook, so it runs once the command has returned, retrying
+  while the session is busy. The text after the command, if any, becomes Jev's
   `goal`; otherwise the goal is the last 3 user prompts.
 - `session.compact` acts only while that flag is set, and only on the
   `plugin` trigger for the main conversation. Every other compaction (`/compact`,
@@ -155,8 +157,8 @@ is a thin adapter over `src/` with three hooks:
 While `/compact-jev` runs, the hook returns the pruned messages with no summary
 message whenever anything was removed or truncated. When Jev keeps everything,
 fails, or the key is missing, it returns `{ skip }` and the conversation stays
-as it is; Claude Code's summarizer is never called. The command prints the
-outcome, e.g. `compact-jev: kept N/M messages, no summary (…)`, and one or more
+as it is; Claude Code's summarizer is never called. The outcome is shown
+as a toast and a log line, e.g. `kept N/M messages, no summary (…)`, and one or more
 `decisions:` log lines list each call's probabilities. See
 [`hooks/README.md`](hooks/README.md) for configuration.
 

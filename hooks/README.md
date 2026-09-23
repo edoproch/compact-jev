@@ -11,7 +11,11 @@ plugin folder is the repository root, so the hook imports it directly):
 
 - `session.start` registers `/compact-jev` with `$.command.register`.
 - `command.run` on `{ command: "compact-jev" }` marks a run as pending,
-  calls `$.session.compact()`, and prints the outcome as the command's output.
+  prints `compacting with Jev…`, and schedules `$.session.compact()` with
+  `$.clock.after`: the engine refuses that call from inside the command's own
+  hook ("it would compact under the turn this hook is holding"). While the
+  session is still busy it retries every 500 ms, up to 10 times. The outcome
+  is shown as a toast and a log line.
   The text after the command, if any, becomes the `goal` Jev is shown.
 - `session.compact` acts only while a run is pending, on trigger `plugin`,
   for the main conversation (no `agentId`). Anything else goes to
@@ -80,10 +84,8 @@ see the root README for what they do.
   releases. This plugin uses the generated declarations from 2.1.274 in
   `types/claude-code.d.ts`; regenerate and review that file after a Claude
   Code upgrade.
-- The tests drive `register()` against a stand-in engine. They have not been
-  run against a live Claude Code: `$.session.compact()` "rejects while a turn
-  runs", and `/compact-jev` relies on non-`immediate` commands running once
-  the session is idle.
+- The tests drive `register()` against a stand-in engine that, like the real
+  one, refuses the first `$.session.compact()` call.
 
 References:
 
