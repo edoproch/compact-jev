@@ -1,7 +1,7 @@
 {
   "name": "compact-jev",
   "displayName": "Compact Jev",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "/compact-jev: Jev-guided verbatim compaction for Claude Code, called through Vercel AI Gateway. Never replaces /compact or auto-compaction.",
   "author": {
     "name": "edoproch",

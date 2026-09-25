@@ -82,7 +82,7 @@ The key is resolved from the sensitive plugin option first, then the process env
 
 ## TypeScript library
 
-The library is **not yet published on npm**. To use it from a checkout, run `npm install && npm run build`, then import from `dist/index.js`. `compactMessages(messages, options)` uses `AI_GATEWAY_API_KEY` by default; pass `onZdrFallback` in its options to detect a no-training-only retry. To supply your own transport, implement `JevAsker` and call `compact(messages, asker, options)`. See [`src/index.ts`](https://github.com/edoproch/compact-jev/blob/main/src/index.ts) for exports and [`examples/demo.ts`](https://github.com/edoproch/compact-jev/blob/main/examples/demo.ts) for an example.
+For Node.js 18 or later, install the [npm package](https://www.npmjs.com/package/compact-jev) with `npm install compact-jev`. Claude Code users only need the plugin installation above. `compactMessages(messages, options)` uses `AI_GATEWAY_API_KEY` by default; pass `onZdrFallback` in its options to detect a no-training-only retry. To supply your own transport, implement `JevAsker` and call `compact(messages, asker, options)`. See [`src/index.ts`](https://github.com/edoproch/compact-jev/blob/main/src/index.ts) for exports and [`examples/demo.ts`](https://github.com/edoproch/compact-jev/blob/main/examples/demo.ts) for an example.
 
 ## Development
 

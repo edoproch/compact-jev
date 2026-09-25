@@ -144,6 +144,8 @@ compact-jev/
 
 **Pack the npm library:** `npm pack` runs `prepack` (`npm run build`) so a clean checkout includes `dist/` even though it is gitignored. Only `dist/`, README, LICENSE and package metadata are published. Validate the tarball with a fresh install before publishing; publishing needs an authenticated npm account with 2FA or an approved publishing credential.
 
+**Release an npm patch:** bump `package.json`, `package-lock.json` and `.claude-plugin/plugin.json` together; update the README before packing because npm versions cannot be overwritten. Run tests, typecheck, plugin validation and `npm publish --dry-run --access public`, then publish with the account's 2FA approval and verify a fresh install from the registry.
+
 **Change what Jev is asked:**
 1. Edit `questionsFor` / the criteria in `src/compact.ts` (or `STATE_CONTEXT` / `historyEntries` in `src/state.ts`). Measure before and after on labeled conversations with the real API: flat probabilities mean the question or state is wrong, not the model.
 2. Update the exact-text expectations in `tests/fast-jev-compaction.test.ts`.
