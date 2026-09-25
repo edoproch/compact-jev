@@ -1,4 +1,4 @@
-import { buildJevRequest, parseJevResponse } from './request.js';
+import { askJev } from './request.js';
 import type { JevAsker, JevQuestions, JevResponse, JevState } from './types.js';
 
 export interface JevClientOptions {
@@ -10,6 +10,8 @@ export interface JevClientOptions {
   baseUrl?: string;
   /** Defaults to the global `fetch`. */
   fetch?: typeof fetch;
+  /** Called when a ZDR-specific rejection triggers a no-training-only retry. */
+  onZdrFallback?: () => void;
 }
 
 /** Asks Jev through Vercel AI Gateway with the global `fetch` (or an injected one). */
@@ -18,26 +20,27 @@ export class JevClient implements JevAsker {
   private readonly model: string | undefined;
   private readonly baseUrl: string | undefined;
   private readonly fetcher: typeof fetch;
+  private readonly onZdrFallback: (() => void) | undefined;
 
   constructor(options: JevClientOptions = {}) {
     this.apiKey = options.apiKey ?? process.env.AI_GATEWAY_API_KEY ?? '';
     this.model = options.model;
     this.baseUrl = options.baseUrl;
     this.fetcher = options.fetch ?? fetch;
+    this.onZdrFallback = options.onZdrFallback;
   }
 
   async ask(state: JevState, questions: JevQuestions): Promise<JevResponse> {
     if (!this.apiKey) throw new Error('AI_GATEWAY_API_KEY is not configured');
-    const request = buildJevRequest(
+    return askJev(
+      async (url, init) => {
+        const response = await this.fetcher(url, init);
+        return { status: response.status, ok: response.ok, text: await response.text() };
+      },
       { apiKey: this.apiKey, model: this.model, baseUrl: this.baseUrl },
       state,
       questions,
+      this.onZdrFallback,
     );
-    const response = await this.fetcher(request.url, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body,
-    });
-    return parseJevResponse(response.status, response.ok, await response.text());
   }
 }

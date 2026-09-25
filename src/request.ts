@@ -4,15 +4,14 @@ import type { JevAnswer, JevQuestions, JevResponse, JevState } from './types.js'
 export const EVALUATE_URL = 'https://ai-gateway.vercel.sh/v1/evaluate';
 export const DEFAULT_MODEL = 'typesafe-ai/jev';
 
-/**
- * Sent with every request, not configurable: AI Gateway routes it only to
- * providers with a zero-data-retention agreement that do not train on
- * prompts (TypeSafe AI has both), and fails it with a 400
- * `no_providers_available` otherwise. The response's routing
- * `planningReasoning` says `ZDR requested: all 1 attempts support ZDR`.
- */
+/** Preferred policy: require both ZDR and no prompt training. */
 export const PROVIDER_OPTIONS = {
   gateway: { zeroDataRetention: true, disallowPromptTraining: true },
+} as const;
+
+/** Used only after the Gateway explicitly rejects the ZDR requirement. */
+export const NO_TRAINING_PROVIDER_OPTIONS = {
+  gateway: { disallowPromptTraining: true },
 } as const;
 
 export interface JevRequest {
@@ -28,6 +27,7 @@ export function buildJevRequest(
     apiKey: string;
     model?: string;
     baseUrl?: string;
+    zeroDataRetention?: boolean;
   },
   state: JevState,
   questions: JevQuestions,
@@ -43,7 +43,8 @@ export function buildJevRequest(
       model: params.model ?? DEFAULT_MODEL,
       state,
       questions,
-      providerOptions: PROVIDER_OPTIONS,
+      providerOptions:
+        params.zeroDataRetention === false ? NO_TRAINING_PROVIDER_OPTIONS : PROVIDER_OPTIONS,
     }),
   };
 }
@@ -52,15 +53,52 @@ export function buildJevRequest(
 export class JevRequestError extends Error {
   constructor(
     readonly status: number,
-    text: string,
+    readonly responseText: string,
   ) {
-    super(`Jev request failed (${status}): ${text.slice(0, 200)}`);
+    super(`Jev request failed (${status}): ${responseText.slice(0, 200)}`);
     this.name = 'JevRequestError';
   }
 
   /** 429 and 5xx: the same request may well succeed when sent again. */
   get retryable(): boolean {
     return this.status === 429 || this.status >= 500;
+  }
+}
+
+/** A ZDR-specific rejection, including a Hobby plan restriction or no eligible provider. */
+export function isZdrUnavailable(error: unknown): error is JevRequestError {
+  return (
+    error instanceof JevRequestError &&
+    [400, 402, 403].includes(error.status) &&
+    /\bZDR\b|ZdrUnauthorizedError|zero[\s_-]*data[\s_-]*retention/i.test(error.responseText)
+  );
+}
+
+export type JevFetchResponse = { status: number; ok: boolean; text: string };
+export type JevFetch = (
+  url: string,
+  init: Pick<JevRequest, 'method' | 'headers' | 'body'>,
+) => Promise<JevFetchResponse>;
+
+/** Try ZDR first; downgrade only a ZDR-specific rejection, keeping no-training mandatory. */
+export async function askJev(
+  fetchFn: JevFetch,
+  params: { apiKey: string; model?: string; baseUrl?: string },
+  state: JevState,
+  questions: JevQuestions,
+  onZdrFallback?: () => void,
+): Promise<JevResponse> {
+  const send = async (zeroDataRetention: boolean): Promise<JevResponse> => {
+    const request = buildJevRequest({ ...params, zeroDataRetention }, state, questions);
+    const response = await fetchFn(request.url, request);
+    return parseJevResponse(response.status, response.ok, response.text);
+  };
+  try {
+    return await send(true);
+  } catch (error) {
+    if (!isZdrUnavailable(error)) throw error;
+    onZdrFallback?.();
+    return send(false);
   }
 }
 

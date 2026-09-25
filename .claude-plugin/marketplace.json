@@ -1,5 +1,6 @@
 {
   "name": "compact-jev",
+  "description": "Verbatim context compaction for Claude Code using Jev through Vercel AI Gateway.",
   "owner": {
     "name": "edoproch",
     "url": "https://github.com/edoproch"
@@ -9,7 +10,6 @@
       "name": "compact-jev",
       "source": "./",
       "description": "/compact-jev: Jev-guided verbatim compaction through Vercel AI Gateway, separate from /compact.",
-      "version": "0.5.1",
       "license": "MIT"
     }
   ]

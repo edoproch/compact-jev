@@ -8,7 +8,7 @@ import type {
 } from 'claude-code';
 
 import { compact, reductionRatio, resolveOptions } from '../src/compact.js';
-import { buildJevRequest, DEFAULT_MODEL, parseJevResponse } from '../src/request.js';
+import { askJev, DEFAULT_MODEL } from '../src/request.js';
 import type {
   CompactOptions,
   CompactResult,
@@ -76,16 +76,15 @@ export function resolveHookConfig(options: PluginOptions): HookConfig {
 }
 
 /** A `JevAsker` over the engine's `$.http.fetch`, posting to AI Gateway. */
-export function jevAsker(fetchFn: HookFetch, apiKey: string, model: string): JevAsker {
+export function jevAsker(
+  fetchFn: HookFetch,
+  apiKey: string,
+  model: string,
+  onZdrFallback?: () => void,
+): JevAsker {
   return {
     async ask(state, questions) {
-      const request = buildJevRequest({ apiKey, model }, state, questions);
-      const response = await fetchFn(request.url, {
-        method: request.method,
-        headers: request.headers,
-        body: request.body,
-      });
-      return parseJevResponse(response.status, response.ok, response.text);
+      return askJev(fetchFn, { apiKey, model }, state, questions, onZdrFallback);
     },
   };
 }
@@ -147,6 +146,7 @@ export function toSessionMessages(
 export type SessionCompaction = {
   result: CompactResult;
   messages: SessionMessage[];
+  usedNoTrainingFallback: boolean;
 };
 
 /** Runs the library over a session transcript; throws when the key is missing or Jev fails. */
@@ -156,8 +156,12 @@ export async function compactSession(
   fetchFn: HookFetch,
 ): Promise<SessionCompaction> {
   if (!config.apiKey) throw new Error('AI_GATEWAY_API_KEY is not configured');
-  const result = await compact(messages, jevAsker(fetchFn, config.apiKey, config.model), config);
-  return { result, messages: toSessionMessages(messages, result.messages) };
+  let usedNoTrainingFallback = false;
+  const asker = jevAsker(fetchFn, config.apiKey, config.model, () => {
+    usedNoTrainingFallback = true;
+  });
+  const result = await compact(messages, asker, config);
+  return { result, messages: toSessionMessages(messages, result.messages), usedNoTrainingFallback };
 }
 
 /** Whether applying the decisions removed or shortened anything at all. */
@@ -340,16 +344,17 @@ export const register: Register = (on: On, options: PluginOptions) => {
     try {
       const config: HookConfig = { ...configured, apiKey: await getApiKey($, configured) };
       if (run.goal) config.goal = run.goal;
-      const { result, messages } = await compactSession(event.messages, config, async (url, init) => {
+      const { result, messages, usedNoTrainingFallback } = await compactSession(event.messages, config, async (url, init) => {
         const response = await $.http.fetch(url, init);
         return { status: response.status, ok: response.ok, text: response.text };
       });
+      const policyNote = usedNoTrainingFallback ? '; ZDR unavailable, no-training fallback used' : '';
       for (const line of decisionLogLines(result)) $.ui.log(line);
       if (!changedAnything(result)) {
-        run.outcome = `nothing to remove, conversation left as is (${summarize(result)})`;
+        run.outcome = `nothing to remove, conversation left as is (${summarize(result)}${policyNote})`;
         return { skip: 'Jev kept every tool call and result' };
       }
-      run.outcome = `kept ${messages.length}/${event.messages.length} messages, no summary (${summarize(result)})`;
+      run.outcome = `kept ${messages.length}/${event.messages.length} messages, no summary (${summarize(result)}${policyNote})`;
       return { messages };
     } catch (error) {
       run.outcome = `conversation left as is (${errorText(error)})`;

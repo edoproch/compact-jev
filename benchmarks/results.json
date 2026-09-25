@@ -1,0 +1,896 @@
+{
+  "fixture": "Claude Code 2.1.282 --model sonnet (claude-sonnet-5), four read-only turns on synthetic files; absolute scratch paths and tool IDs normalized",
+  "date": "2026-09-25",
+  "inferredGoal": "Now investigate the cart discount rounding failure. Read src/cart.ts and tests/cart.test.ts, check whether tax logic is relevant, and explain the minimal fix. Do not edit any files.\nPrepare a release note outline that covers the billing calculation and the cart rounding bug. Revisit docs/release.md and docs/billing.md and inspect src/cart.ts for accurate wording. Do not edit files.\nFor a release checklist, use Glob to list source and docs files, Grep to locate rounding references in src, and Bash to run wc -l on the source, test and docs files. Do not edit anything; report what you found.",
+  "explicitGoal": "Fix the cart discount rounding failure in src/cart.ts using tests/cart.test.ts.",
+  "runs": [
+    {
+      "repeat": 1,
+      "condition": "inferred",
+      "reductionPercent": 81.7,
+      "messagesBefore": 39,
+      "messagesAfter": 37,
+      "charsBefore": 60171,
+      "charsAfter": 11023,
+      "calls": 14,
+      "kept": 1,
+      "resultsDropped": 9,
+      "callsDropped": 1,
+      "pinned": 3,
+      "stateTokens": 4355,
+      "stateStage": "full",
+      "requests": 2,
+      "retries": 0,
+      "ms": 595,
+      "zdrFallback": false,
+      "decisions": [
+        {
+          "id": "t1",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.71,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t2",
+          "tool": "Read",
+          "target": "src/billing.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.66,
+          "keepResult": 0.31
+        },
+        {
+          "id": "t3",
+          "tool": "Read",
+          "target": "src/tax.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.72,
+          "keepResult": 0.34
+        },
+        {
+          "id": "t4",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.65,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t5",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.65,
+          "keepResult": 0.27
+        },
+        {
+          "id": "t6",
+          "tool": "Read",
+          "target": "tests/cart.test.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.59,
+          "keepResult": 0.16
+        },
+        {
+          "id": "t7",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.52,
+          "keepResult": 0.12
+        },
+        {
+          "id": "t8",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.54,
+          "keepResult": 0.11
+        },
+        {
+          "id": "t9",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.32,
+          "keepResult": 0.17
+        },
+        {
+          "id": "t10",
+          "tool": "Glob",
+          "target": "src/**/*.ts",
+          "action": "keep",
+          "reason": "kept",
+          "keepCall": 0.83,
+          "keepResult": 0.56
+        },
+        {
+          "id": "t11",
+          "tool": "Glob",
+          "target": "docs/**/*.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.76,
+          "keepResult": 0.48
+        },
+        {
+          "id": "t12",
+          "tool": "Glob",
+          "target": "tests/**/*.ts",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t13",
+          "tool": "Grep",
+          "target": "src",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t14",
+          "tool": "Bash",
+          "target": "wc -l src/billing.ts src/tax.ts src/cart.ts tests/cart.test.ts docs/billing.md docs/release.md",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        }
+      ]
+    },
+    {
+      "repeat": 1,
+      "condition": "explicit",
+      "reductionPercent": 86.1,
+      "messagesBefore": 39,
+      "messagesAfter": 21,
+      "charsBefore": 60171,
+      "charsAfter": 8384,
+      "calls": 14,
+      "kept": 0,
+      "resultsDropped": 2,
+      "callsDropped": 9,
+      "pinned": 3,
+      "stateTokens": 4220,
+      "stateStage": "full",
+      "requests": 2,
+      "retries": 1,
+      "ms": 900,
+      "zdrFallback": false,
+      "decisions": [
+        {
+          "id": "t1",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.32,
+          "keepResult": 0.08
+        },
+        {
+          "id": "t2",
+          "tool": "Read",
+          "target": "src/billing.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.3,
+          "keepResult": 0.18
+        },
+        {
+          "id": "t3",
+          "tool": "Read",
+          "target": "src/tax.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.38,
+          "keepResult": 0.21
+        },
+        {
+          "id": "t4",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.42,
+          "keepResult": 0.09
+        },
+        {
+          "id": "t5",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.77,
+          "keepResult": 0.33
+        },
+        {
+          "id": "t6",
+          "tool": "Read",
+          "target": "tests/cart.test.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.72,
+          "keepResult": 0.32
+        },
+        {
+          "id": "t7",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.29,
+          "keepResult": 0.11
+        },
+        {
+          "id": "t8",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.35,
+          "keepResult": 0.09
+        },
+        {
+          "id": "t9",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.27,
+          "keepResult": 0.17
+        },
+        {
+          "id": "t10",
+          "tool": "Glob",
+          "target": "src/**/*.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.43,
+          "keepResult": 0.43
+        },
+        {
+          "id": "t11",
+          "tool": "Glob",
+          "target": "docs/**/*.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.16,
+          "keepResult": 0.18
+        },
+        {
+          "id": "t12",
+          "tool": "Glob",
+          "target": "tests/**/*.ts",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t13",
+          "tool": "Grep",
+          "target": "src",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t14",
+          "tool": "Bash",
+          "target": "wc -l src/billing.ts src/tax.ts src/cart.ts tests/cart.test.ts docs/billing.md docs/release.md",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "condition": "inferred",
+      "reductionPercent": 81.7,
+      "messagesBefore": 39,
+      "messagesAfter": 37,
+      "charsBefore": 60171,
+      "charsAfter": 11023,
+      "calls": 14,
+      "kept": 1,
+      "resultsDropped": 9,
+      "callsDropped": 1,
+      "pinned": 3,
+      "stateTokens": 4355,
+      "stateStage": "full",
+      "requests": 2,
+      "retries": 0,
+      "ms": 599,
+      "zdrFallback": false,
+      "decisions": [
+        {
+          "id": "t1",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.73,
+          "keepResult": 0.09
+        },
+        {
+          "id": "t2",
+          "tool": "Read",
+          "target": "src/billing.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.67,
+          "keepResult": 0.27
+        },
+        {
+          "id": "t3",
+          "tool": "Read",
+          "target": "src/tax.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.7,
+          "keepResult": 0.33
+        },
+        {
+          "id": "t4",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.68,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t5",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.65,
+          "keepResult": 0.24
+        },
+        {
+          "id": "t6",
+          "tool": "Read",
+          "target": "tests/cart.test.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.63,
+          "keepResult": 0.17
+        },
+        {
+          "id": "t7",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.5,
+          "keepResult": 0.12
+        },
+        {
+          "id": "t8",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.5,
+          "keepResult": 0.11
+        },
+        {
+          "id": "t9",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.29,
+          "keepResult": 0.13
+        },
+        {
+          "id": "t10",
+          "tool": "Glob",
+          "target": "src/**/*.ts",
+          "action": "keep",
+          "reason": "kept",
+          "keepCall": 0.82,
+          "keepResult": 0.52
+        },
+        {
+          "id": "t11",
+          "tool": "Glob",
+          "target": "docs/**/*.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.79,
+          "keepResult": 0.45
+        },
+        {
+          "id": "t12",
+          "tool": "Glob",
+          "target": "tests/**/*.ts",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t13",
+          "tool": "Grep",
+          "target": "src",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t14",
+          "tool": "Bash",
+          "target": "wc -l src/billing.ts src/tax.ts src/cart.ts tests/cart.test.ts docs/billing.md docs/release.md",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "condition": "explicit",
+      "reductionPercent": 86.1,
+      "messagesBefore": 39,
+      "messagesAfter": 21,
+      "charsBefore": 60171,
+      "charsAfter": 8384,
+      "calls": 14,
+      "kept": 0,
+      "resultsDropped": 2,
+      "callsDropped": 9,
+      "pinned": 3,
+      "stateTokens": 4220,
+      "stateStage": "full",
+      "requests": 2,
+      "retries": 0,
+      "ms": 490,
+      "zdrFallback": false,
+      "decisions": [
+        {
+          "id": "t1",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.31,
+          "keepResult": 0.08
+        },
+        {
+          "id": "t2",
+          "tool": "Read",
+          "target": "src/billing.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.26,
+          "keepResult": 0.15
+        },
+        {
+          "id": "t3",
+          "tool": "Read",
+          "target": "src/tax.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.34,
+          "keepResult": 0.18
+        },
+        {
+          "id": "t4",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.39,
+          "keepResult": 0.09
+        },
+        {
+          "id": "t5",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.78,
+          "keepResult": 0.3
+        },
+        {
+          "id": "t6",
+          "tool": "Read",
+          "target": "tests/cart.test.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.77,
+          "keepResult": 0.4
+        },
+        {
+          "id": "t7",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.28,
+          "keepResult": 0.11
+        },
+        {
+          "id": "t8",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.33,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t9",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.35,
+          "keepResult": 0.15
+        },
+        {
+          "id": "t10",
+          "tool": "Glob",
+          "target": "src/**/*.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.37,
+          "keepResult": 0.42
+        },
+        {
+          "id": "t11",
+          "tool": "Glob",
+          "target": "docs/**/*.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.14,
+          "keepResult": 0.19
+        },
+        {
+          "id": "t12",
+          "tool": "Glob",
+          "target": "tests/**/*.ts",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t13",
+          "tool": "Grep",
+          "target": "src",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t14",
+          "tool": "Bash",
+          "target": "wc -l src/billing.ts src/tax.ts src/cart.ts tests/cart.test.ts docs/billing.md docs/release.md",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "condition": "inferred",
+      "reductionPercent": 81.7,
+      "messagesBefore": 39,
+      "messagesAfter": 37,
+      "charsBefore": 60171,
+      "charsAfter": 11023,
+      "calls": 14,
+      "kept": 1,
+      "resultsDropped": 9,
+      "callsDropped": 1,
+      "pinned": 3,
+      "stateTokens": 4355,
+      "stateStage": "full",
+      "requests": 2,
+      "retries": 1,
+      "ms": 896,
+      "zdrFallback": false,
+      "decisions": [
+        {
+          "id": "t1",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.72,
+          "keepResult": 0.09
+        },
+        {
+          "id": "t2",
+          "tool": "Read",
+          "target": "src/billing.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.67,
+          "keepResult": 0.29
+        },
+        {
+          "id": "t3",
+          "tool": "Read",
+          "target": "src/tax.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.7,
+          "keepResult": 0.36
+        },
+        {
+          "id": "t4",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.66,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t5",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.69,
+          "keepResult": 0.23
+        },
+        {
+          "id": "t6",
+          "tool": "Read",
+          "target": "tests/cart.test.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.58,
+          "keepResult": 0.17
+        },
+        {
+          "id": "t7",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.59,
+          "keepResult": 0.11
+        },
+        {
+          "id": "t8",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.57,
+          "keepResult": 0.11
+        },
+        {
+          "id": "t9",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.32,
+          "keepResult": 0.15
+        },
+        {
+          "id": "t10",
+          "tool": "Glob",
+          "target": "src/**/*.ts",
+          "action": "keep",
+          "reason": "kept",
+          "keepCall": 0.82,
+          "keepResult": 0.54
+        },
+        {
+          "id": "t11",
+          "tool": "Glob",
+          "target": "docs/**/*.md",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.76,
+          "keepResult": 0.45
+        },
+        {
+          "id": "t12",
+          "tool": "Glob",
+          "target": "tests/**/*.ts",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t13",
+          "tool": "Grep",
+          "target": "src",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t14",
+          "tool": "Bash",
+          "target": "wc -l src/billing.ts src/tax.ts src/cart.ts tests/cart.test.ts docs/billing.md docs/release.md",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "condition": "explicit",
+      "reductionPercent": 86.1,
+      "messagesBefore": 39,
+      "messagesAfter": 21,
+      "charsBefore": 60171,
+      "charsAfter": 8384,
+      "calls": 14,
+      "kept": 0,
+      "resultsDropped": 2,
+      "callsDropped": 9,
+      "pinned": 3,
+      "stateTokens": 4220,
+      "stateStage": "full",
+      "requests": 2,
+      "retries": 0,
+      "ms": 494,
+      "zdrFallback": false,
+      "decisions": [
+        {
+          "id": "t1",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.32,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t2",
+          "tool": "Read",
+          "target": "src/billing.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.28,
+          "keepResult": 0.17
+        },
+        {
+          "id": "t3",
+          "tool": "Read",
+          "target": "src/tax.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.36,
+          "keepResult": 0.19
+        },
+        {
+          "id": "t4",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.41,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t5",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.81,
+          "keepResult": 0.33
+        },
+        {
+          "id": "t6",
+          "tool": "Read",
+          "target": "tests/cart.test.ts",
+          "action": "drop_result",
+          "reason": "result_dropped",
+          "keepCall": 0.75,
+          "keepResult": 0.46
+        },
+        {
+          "id": "t7",
+          "tool": "Read",
+          "target": "docs/release.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.27,
+          "keepResult": 0.12
+        },
+        {
+          "id": "t8",
+          "tool": "Read",
+          "target": "docs/billing.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.29,
+          "keepResult": 0.1
+        },
+        {
+          "id": "t9",
+          "tool": "Read",
+          "target": "src/cart.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.3,
+          "keepResult": 0.16
+        },
+        {
+          "id": "t10",
+          "tool": "Glob",
+          "target": "src/**/*.ts",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.35,
+          "keepResult": 0.41
+        },
+        {
+          "id": "t11",
+          "tool": "Glob",
+          "target": "docs/**/*.md",
+          "action": "drop_call",
+          "reason": "call_dropped",
+          "keepCall": 0.15,
+          "keepResult": 0.19
+        },
+        {
+          "id": "t12",
+          "tool": "Glob",
+          "target": "tests/**/*.ts",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t13",
+          "tool": "Grep",
+          "target": "src",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        },
+        {
+          "id": "t14",
+          "tool": "Bash",
+          "target": "wc -l src/billing.ts src/tax.ts src/cart.ts tests/cart.test.ts docs/billing.md docs/release.md",
+          "action": "keep",
+          "reason": "pinned",
+          "keepCall": 1,
+          "keepResult": 1
+        }
+      ]
+    }
+  ]
+}

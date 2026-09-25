@@ -548,6 +548,10 @@ describe('HTTP client', () => {
       questions: { q: { type: 'boolean', instructions: 'x' } },
       providerOptions: { gateway: { zeroDataRetention: true, disallowPromptTraining: true } },
     });
+    const fallback = buildJevRequest({ apiKey: 'k', zeroDataRetention: false }, 'state', {});
+    expect(JSON.parse(fallback.body).providerOptions).toEqual({
+      gateway: { disallowPromptTraining: true },
+    });
   });
 
   it('rejects failed and malformed responses', () => {
@@ -576,5 +580,60 @@ describe('HTTP client', () => {
     await expect(
       compactMessages(transcript(), { apiKey: '', preserveRecentMessages: 1 }),
     ).rejects.toThrow(/AI_GATEWAY_API_KEY/);
+  });
+
+  it('falls back to no-training only after a ZDR-specific rejection', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    let fallbacks = 0;
+    const client = new JevClient({
+      apiKey: 'k',
+      onZdrFallback: () => { fallbacks += 1; },
+      fetch: (async (_url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        bodies.push(body);
+        if (bodies.length === 1) {
+          return new Response(JSON.stringify({ type: 'no_providers_available', error: 'No ZDR providers available' }), { status: 400 });
+        }
+        return new Response(JSON.stringify({ answers: {} }), { status: 200 });
+      }) as typeof fetch,
+    });
+    await expect(client.ask('state', {})).resolves.toEqual({ answers: {} });
+    expect(fallbacks).toBe(1);
+    expect(bodies.map((body) => body.providerOptions)).toEqual([
+      { gateway: { zeroDataRetention: true, disallowPromptTraining: true } },
+      { gateway: { disallowPromptTraining: true } },
+    ]);
+  });
+
+  it('does not weaken privacy for unrelated errors or a failed fallback', async () => {
+    for (const error of [
+      { status: 401, text: 'invalid API key' },
+      { status: 400, text: 'invalid request' },
+      { status: 503, text: 'ZDR provider unavailable' },
+    ]) {
+      let calls = 0;
+      const client = new JevClient({
+        apiKey: 'k',
+        fetch: (async () => {
+          calls += 1;
+          return new Response(error.text, { status: error.status });
+        }) as typeof fetch,
+      });
+      await expect(client.ask('state', {})).rejects.toThrow(/Jev request failed/);
+      expect(calls).toBe(1);
+    }
+
+    let calls = 0;
+    const client = new JevClient({
+      apiKey: 'k',
+      fetch: (async () => {
+        calls += 1;
+        return new Response(calls === 1 ? 'ZDR requires Pro' : 'No no-training providers available', {
+          status: 403,
+        });
+      }) as typeof fetch,
+    });
+    await expect(client.ask('state', {})).rejects.toThrow(/No no-training providers available/);
+    expect(calls).toBe(2);
   });
 });

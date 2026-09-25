@@ -1,7 +1,11 @@
 {
   "name": "compact-jev",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Verbatim context compaction for LLM agents using Jev through Vercel AI Gateway.",
+  "repository": { "type": "git", "url": "https://github.com/edoproch/compact-jev.git" },
+  "homepage": "https://github.com/edoproch/compact-jev#readme",
+  "bugs": "https://github.com/edoproch/compact-jev/issues",
+  "keywords": ["claude-code", "context-compaction", "jev", "vercel-ai-gateway"],
   "type": "module",
   "license": "MIT",
   "engines": {
@@ -22,6 +26,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit && npm run typecheck:hooks",
     "test": "vitest run",
+    "benchmark": "tsx benchmarks/run.ts",
     "demo": "tsx examples/demo.ts",
     "typecheck:hooks": "tsc -p tsconfig.hooks.json",
     "validate:plugin": "claude plugin validate .claude-plugin/plugin.json"

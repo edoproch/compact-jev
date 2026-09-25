@@ -29,6 +29,7 @@ function-hooks API is early access (2.1.274+, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS
 | --- | --- |
 | Install | `npm install` (or `npm ci --ignore-scripts`) |
 | Test | `npm test` (vitest, fake Jev + stand-in engine, no network) |
+| Live benchmark | `AI_GATEWAY_API_KEY=... npm run benchmark` (real Jev, six runs and 12 requests over a Sonnet transcript) |
 | Type-check | `npm run typecheck` (`src/` via tsconfig.json and `hooks/` via tsconfig.hooks.json; tests are not type-checked) |
 | Build library | `npm run build` (→ `dist/`, gitignored) |
 | Validate plugin | `npm run validate:plugin` (`claude plugin validate`) |
@@ -46,6 +47,11 @@ compact-jev/
 │   ├── hooks.json         # {"modules": ["./compact-jev.ts"]}
 │   ├── compact-jev.ts     # the function-hooks module (Claude Code adapter)
 │   └── README.md          # plugin behaviour + configuration
+├── benchmarks/
+│   ├── README.md          # Sonnet/Jev measurement method, results, per-call decisions
+│   ├── sonnet-session.json # normalized, synthetic-file Claude Code Sonnet transcript
+│   ├── run.ts             # live Jev replay: inferred vs explicit goal, three repeats each
+│   └── results.json       # recorded live decisions and size statistics
 ├── src/                   # the library (host-agnostic)
 │   ├── index.ts           # re-exports everything
 │   ├── types.ts
@@ -86,9 +92,9 @@ compact-jev/
   - Decisions: `decideCall` chooses keep, `drop_result` (truncate the head) or `drop_call`, using `keepThreshold`; `applyDecisions` rebuilds the messages.
   - Entry points: `compact(messages, asker, options)` is the main one; `reductionRatio` is a helper.
 - **`request.ts`**: the HTTP shape, with no I/O.
-  - Constants: `EVALUATE_URL`, `DEFAULT_MODEL`, and `PROVIDER_OPTIONS`, which every request body carries: `providerOptions.gateway` with `zeroDataRetention: true` and `disallowPromptTraining: true`. It is fixed on purpose, with no option to turn it off.
-  - Functions: `buildJevRequest`, `parseJevResponse` (throws `JevRequestError` with `status` and `retryable` on non-2xx), and `probabilityAnswer`, which extracts one boolean answer.
-- **`client.ts`**: `JevClient` implements `JevAsker` over `fetch`. The key comes from the option or from `AI_GATEWAY_API_KEY`, and the client is Node-only.
+  - Constants: `EVALUATE_URL`, `DEFAULT_MODEL`, `PROVIDER_OPTIONS` (ZDR and no training), and `NO_TRAINING_PROVIDER_OPTIONS` (no training only).
+  - Functions: `buildJevRequest`, `askJev` (tries ZDR first and retries without it only after a ZDR-specific 400/402/403), `parseJevResponse` (throws `JevRequestError` with `status`, `responseText` and `retryable` on non-2xx), and `probabilityAnswer`, which extracts one boolean answer.
+- **`client.ts`**: `JevClient` implements `JevAsker` over `fetch` using `askJev`. The key comes from the option or from `AI_GATEWAY_API_KEY`, and the client is Node-only. `onZdrFallback` reports a privacy downgrade to library callers.
 - **`messages.ts`**: `compactMessages(messages, opts)` is `compact` with a `JevClient`.
 
 ### Claude Code plugin (`hooks/`, `.claude-plugin/`)
@@ -132,6 +138,8 @@ compact-jev/
 - **Decisions:** `keepResult ≥ τ` keeps everything; otherwise `keepCall ≥ τ` truncates the result to `truncateHeadChars` plus a note (only when the result is longer than head + 120); otherwise the call and its result are removed. Then `dropRepeats` truncates a kept output whose identical later call (same tool and input) is kept or pinned too (reason `repeated`): Jev kept both copies of a re-read file even with a `later` note or the later copy in the state, so this is deterministic.
 
 ## Common workflows
+
+**Reproduce the Sonnet benchmark:** set `AI_GATEWAY_API_KEY`, run `npm run benchmark > benchmarks/results.json`, and compare the results with `benchmarks/README.md` and the short table in the root README. The fixture is a recorded Claude Code Sonnet session; the runner replays it through the compaction library and live Jev. Its percentage is a count of transcript characters, not actual Claude Code context tokens. Update the reported numbers only after a live run. The source session used synthetic files with repeated long lines, so do not generalize its reduction rate.
 
 **Change what Jev is asked:**
 1. Edit `questionsFor` / the criteria in `src/compact.ts` (or `STATE_CONTEXT` / `historyEntries` in `src/state.ts`). Measure before and after on labeled conversations with the real API: flat probabilities mean the question or state is wrong, not the model.
@@ -181,4 +189,4 @@ compact-jev/
   - `retries` 12
   - `model` `typesafe-ai/jev`
 - **Install:** `claude plugin marketplace add edoproch/compact-jev`, then `claude plugin install compact-jev@compact-jev`.
-- **Privacy:** every run sends all user and assistant text, the tool inputs (at most 1000 characters each) and an excerpt of each candidate tool output (at most `outputExcerptChars`, 240) to the Gateway and on to TypeSafe. `outputExcerptChars: 0` sends no output. Every request requires zero data retention and no prompt training (`PROVIDER_OPTIONS`); the Gateway confirms it in `providerMetadata.gateway.routing.planningReasoning` (`ZDR requested: all 1 attempts support ZDR … Disallow prompt training requested`). A provider that cannot meet both makes the Gateway answer 400 `no_providers_available`, which is not retried.
+- **Privacy:** every run sends all user and assistant text, the tool inputs (at most 1000 characters each) and an excerpt of each candidate tool output (at most `outputExcerptChars`, 240) to the Gateway and on to TypeSafe. `outputExcerptChars: 0` sends no output. Every request first requires ZDR and no prompt training. On a ZDR-specific 400/402/403 (including Hobby plan rejection or `no_providers_available`), `askJev` retries the same state and questions with no prompt training still required, but without requesting ZDR. Other errors do not weaken the policy. Hobby users may therefore have provider-side retention under TypeSafe's terms. The hook's outcome notes when any batch used the fallback; library callers can use `onZdrFallback`. Gateway routing metadata confirms applied request filters.

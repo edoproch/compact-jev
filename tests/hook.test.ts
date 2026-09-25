@@ -113,12 +113,13 @@ describe('compactSession', () => {
   it('runs the library over the engine fetch and reports the outcome', async () => {
     const bodies: string[] = [];
     const config = { ...resolveHookConfig({ preserveRecentMessages: 1 }), apiKey: 'k', model: 'jev-x' };
-    const { result: output, messages } = await compactSession(
+    const { result: output, messages, usedNoTrainingFallback } = await compactSession(
       transcript(),
       config,
       jevFetch((name) => (name === 'call_t2' || name === 'result_t2' ? 0.9 : 0.1), bodies),
     );
     expect(bodies).toHaveLength(1);
+    expect(usedNoTrainingFallback).toBe(false);
     expect(JSON.parse(bodies[0]!).model).toBe('jev-x');
     expect(JSON.parse(bodies[0]!).providerOptions).toEqual({
       gateway: { zeroDataRetention: true, disallowPromptTraining: true },
@@ -148,6 +149,28 @@ describe('compactSession', () => {
     await expect(
       compactSession(transcript(), { ...config, apiKey: 'k' }, async () => ({ status: 500, ok: false, text: 'x' })),
     ).rejects.toThrow(/500/);
+  });
+
+  it('retries a Hobby ZDR rejection with no-training while keeping the same questions', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const config = { ...resolveHookConfig({ preserveRecentMessages: 1 }), apiKey: 'k' };
+    const successful = jevFetch(() => 0.1);
+    const { result: output, usedNoTrainingFallback } = await compactSession(transcript(), config, async (url, init) => {
+      bodies.push(JSON.parse(init?.body ?? '{}') as Record<string, unknown>);
+      if (bodies.length === 1) {
+        return { status: 403, ok: false, text: 'Zero Data Retention requires a Pro plan' };
+      }
+      return successful(url, init);
+    });
+    expect(output.stats.requests).toBe(1);
+    expect(usedNoTrainingFallback).toBe(true);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]?.state).toEqual(bodies[0]?.state);
+    expect(bodies[1]?.questions).toEqual(bodies[0]?.questions);
+    expect(bodies.map((body) => body.providerOptions)).toEqual([
+      { gateway: { zeroDataRetention: true, disallowPromptTraining: true } },
+      { gateway: { disallowPromptTraining: true } },
+    ]);
   });
 });
 
@@ -295,6 +318,20 @@ describe('the /compact-jev plugin', () => {
     expect(text).toMatch(/^kept 5\/7 messages, no summary \(\d+% reduction; 1 kept, 1 call_dropped/);
     expect(state.logs[0]).toBe('compacting 7 messages with Jev (trigger manual)');
     expect(state.logs[1]).toMatch(/^decisions: t1:Read:drop_call/);
+  });
+
+  it('reports when the Hobby fallback was used', async () => {
+    let calls = 0;
+    const successful = jevFetch(() => 0.1);
+    const { state, runCommand } = engine(load(), async (url, init) => {
+      calls += 1;
+      if (calls === 1) return { status: 403, ok: false, text: 'ZdrUnauthorizedError: Pro required' };
+      return successful(url, init);
+    });
+    const { text } = await runCommand();
+    expect(state.fetches).toBe(2);
+    expect(text).toContain('ZDR unavailable, no-training fallback used');
+    expect(state.coreRuns).toBe(0);
   });
 
   it('applies any reduction, however small (no minimum ratio)', async () => {
