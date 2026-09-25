@@ -46,7 +46,7 @@ I ran four read-only turns in Claude Code 2.1.282 with `--model sonnet` (resolve
 | Historical tool calls removed | 1 / 14 | 9 / 14 |
 | Tool results shortened | 9 | 2 |
 
-With the explicit goal, old `Read` calls about billing and release notes and two `Glob` calls were removed. Three recent calls (`Glob`, `Grep`, `Bash`) were protected in both replays. I also ran `/compact-jev` inside the actual Sonnet session: it kept 23 of 43 messages, removed 10 historical calls, and reported 86% character reduction without a summary. The files were synthetic and deliberately long, so this is an example, not an expected reduction rate. **We have not measured a comparable before/after count of Sonnet context tokens**; these percentages count transcript characters. See the [full method, per-call decisions, fixture, and live runner](benchmarks/README.md).
+With the explicit goal, old `Read` calls about billing and release notes and two `Glob` calls were removed. Three recent calls (`Glob`, `Grep`, `Bash`) were protected in both replays. I also ran `/compact-jev` inside the actual Sonnet session: it kept 23 of 43 messages, removed 10 historical calls, and reported 86% character reduction without a summary. The files were synthetic and deliberately long, so this is an example, not an expected reduction rate. **We have not measured a comparable before/after count of Sonnet context tokens**; these percentages count transcript characters. See the [full method, per-call decisions, fixture, and live runner](https://github.com/edoproch/compact-jev/blob/main/benchmarks/README.md).
 
 ## Privacy and Vercel plans
 
@@ -82,7 +82,7 @@ The key is resolved from the sensitive plugin option first, then the process env
 
 ## TypeScript library
 
-The library is **not yet published on npm**. To use it from a checkout, run `npm install && npm run build`, then import from `dist/index.js`. `compactMessages(messages, options)` uses `AI_GATEWAY_API_KEY` by default; pass `onZdrFallback` in its options to detect a no-training-only retry. To supply your own transport, implement `JevAsker` and call `compact(messages, asker, options)`. See [`src/index.ts`](src/index.ts) for exports and [`examples/demo.ts`](examples/demo.ts) for an example.
+The library is **not yet published on npm**. To use it from a checkout, run `npm install && npm run build`, then import from `dist/index.js`. `compactMessages(messages, options)` uses `AI_GATEWAY_API_KEY` by default; pass `onZdrFallback` in its options to detect a no-training-only retry. To supply your own transport, implement `JevAsker` and call `compact(messages, asker, options)`. See [`src/index.ts`](https://github.com/edoproch/compact-jev/blob/main/src/index.ts) for exports and [`examples/demo.ts`](https://github.com/edoproch/compact-jev/blob/main/examples/demo.ts) for an example.
 
 ## Development
 
@@ -96,4 +96,4 @@ npm run validate:plugin
 
 To load the checkout directly, run `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir .`. Function hooks are an early-access Claude Code API and may change between releases. The checked-in type declarations target Claude Code 2.1.274.
 
-This project is a fork of [tamaratran/fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction). Licensed under [MIT](LICENSE).
+This project is a fork of [tamaratran/fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction). Licensed under [MIT](https://github.com/edoproch/compact-jev/blob/main/LICENSE).

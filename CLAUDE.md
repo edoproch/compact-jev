@@ -32,6 +32,7 @@ function-hooks API is early access (2.1.274+, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS
 | Live benchmark | `AI_GATEWAY_API_KEY=... npm run benchmark` (real Jev, six runs and 12 requests over a Sonnet transcript) |
 | Type-check | `npm run typecheck` (`src/` via tsconfig.json and `hooks/` via tsconfig.hooks.json; tests are not type-checked) |
 | Build library | `npm run build` (→ `dist/`, gitignored) |
+| Pack library | `npm pack` (`prepack` builds `dist/` first) |
 | Validate plugin | `npm run validate:plugin` (`claude plugin validate`) |
 | Live demo | `AI_GATEWAY_API_KEY=... npm run demo` (real network call) |
 | Run plugin from checkout | `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1 claude --plugin-dir .` |
@@ -140,6 +141,8 @@ compact-jev/
 ## Common workflows
 
 **Reproduce the Sonnet benchmark:** set `AI_GATEWAY_API_KEY`, run `npm run benchmark > benchmarks/results.json`, and compare the results with `benchmarks/README.md` and the short table in the root README. The fixture is a recorded Claude Code Sonnet session; the runner replays it through the compaction library and live Jev. Its percentage is a count of transcript characters, not actual Claude Code context tokens. Update the reported numbers only after a live run. The source session used synthetic files with repeated long lines, so do not generalize its reduction rate.
+
+**Pack the npm library:** `npm pack` runs `prepack` (`npm run build`) so a clean checkout includes `dist/` even though it is gitignored. Only `dist/`, README, LICENSE and package metadata are published. Validate the tarball with a fresh install before publishing; publishing needs an authenticated npm account with 2FA or an approved publishing credential.
 
 **Change what Jev is asked:**
 1. Edit `questionsFor` / the criteria in `src/compact.ts` (or `STATE_CONTEXT` / `historyEntries` in `src/state.ts`). Measure before and after on labeled conversations with the real API: flat probabilities mean the question or state is wrong, not the model.

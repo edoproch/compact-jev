@@ -24,6 +24,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit && npm run typecheck:hooks",
     "test": "vitest run",
     "benchmark": "tsx benchmarks/run.ts",
