@@ -2,7 +2,7 @@
   "name": "compact-jev",
   "version": "0.5.2",
   "description": "Verbatim context compaction for LLM agents using Jev through Vercel AI Gateway.",
-  "repository": { "type": "git", "url": "https://github.com/edoproch/compact-jev.git" },
+  "repository": { "type": "git", "url": "git+https://github.com/edoproch/compact-jev.git" },
   "homepage": "https://github.com/edoproch/compact-jev#readme",
   "bugs": "https://github.com/edoproch/compact-jev/issues",
   "keywords": ["claude-code", "context-compaction", "jev", "vercel-ai-gateway"],
