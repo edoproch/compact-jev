@@ -48,6 +48,10 @@ I ran four read-only turns in Claude Code 2.1.282 with `--model sonnet` (resolve
 
 With the explicit goal, old `Read` calls about billing and release notes and two `Glob` calls were removed. Three recent calls (`Glob`, `Grep`, `Bash`) were protected in both replays. I also ran `/compact-jev` inside the actual Sonnet session: it kept 23 of 43 messages, removed 10 historical calls, and reported 86% character reduction without a summary. The files were synthetic and deliberately long, so this is an example, not an expected reduction rate. **We have not measured a comparable before/after count of Sonnet context tokens**; these percentages count transcript characters. See the [full method, per-call decisions, fixture, and live runner](https://github.com/edoproch/compact-jev/blob/main/benchmarks/README.md).
 
+### Local Laya experiment
+
+I tested [Laya](https://github.com/NandhaKishorM/laya) as a local replacement on the same compaction core, including English and Italian user prompts. On an Apple Silicon Mac with 16 GB of memory, the multilingual checkpoint (322 million parameters, 644 MB of weights) took 25–66 seconds for full-state cases and removed no historical calls; Jev took 1.3–1.4 seconds and removed nine with the same explicit goal. A different Laya question format removed all calls, including relevant code and test reads. Because quality and runtime are not yet acceptable for this workload, the plugin still offers Jev only. See the [measured comparison and its limitations](benchmarks/README.md#local-laya-comparison-2026-09-26).
+
 ## Privacy and Vercel plans
 
 Each run sends user and assistant text, tool inputs, and short excerpts of candidate tool outputs to Vercel AI Gateway and TypeSafe AI. The state is repeated across batches. Set `outputExcerptChars` to `0` in `/plugin` if you do not want tool output sent; this reduces Jev's accuracy. Your full tool outputs are not sent by default.

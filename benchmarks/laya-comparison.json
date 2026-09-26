@@ -1,0 +1,1350 @@
+{
+  "date": "2026-09-26",
+  "hardware": "Apple Silicon arm64, 16 GB unified memory",
+  "layaVersion": "0.3.20",
+  "checkpoint": "convaiinnovations/laya-multilingual",
+  "device": "mps",
+  "note": "Separate process per main result. Italian variant translates user prompts only; assistant text, code and tool outputs remain English. One full-context Italian inferred run was interrupted after over two minutes without a result.",
+  "main": [
+    {
+      "loadMs": 15944,
+      "repeat": 1,
+      "language": "en",
+      "condition": "explicit",
+      "laya": {
+        "options": {
+          "goal": "Fix the cart discount rounding failure in src/cart.ts using tests/cart.test.ts."
+        },
+        "reductionPercent": 27.1,
+        "messagesBefore": 39,
+        "messagesAfter": 39,
+        "charsBefore": 60171,
+        "charsAfter": 43882,
+        "calls": 14,
+        "kept": 8,
+        "resultsDropped": 3,
+        "callsDropped": 0,
+        "pinned": 3,
+        "stateTokens": 4220,
+        "stateStage": "full",
+        "requests": [
+          {
+            "inferMs": 30836,
+            "usage": {
+              "input_tokens": 76842,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 1334280192
+          },
+          {
+            "inferMs": 35234,
+            "usage": {
+              "input_tokens": 4946,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 1334280192
+          }
+        ],
+        "retries": 0,
+        "ms": 66485,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.958,
+            "keepResult": 0.961
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.962,
+            "keepResult": 0.958
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.96,
+            "keepResult": 0.957
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.944,
+            "keepResult": 0.957
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.958,
+            "keepResult": 0.955
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.952,
+            "keepResult": 0.954
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.939,
+            "keepResult": 0.955
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.952,
+            "keepResult": 0.957
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.957,
+            "keepResult": 0.956
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.943,
+            "keepResult": 0.956
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.887,
+            "keepResult": 0.927
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      },
+      "jev": {
+        "reductionPercent": 86.1,
+        "messagesBefore": 39,
+        "messagesAfter": 21,
+        "charsBefore": 60171,
+        "charsAfter": 8384,
+        "calls": 14,
+        "kept": 0,
+        "resultsDropped": 2,
+        "callsDropped": 9,
+        "pinned": 3,
+        "stateTokens": 4220,
+        "stateStage": "full",
+        "requests": 2,
+        "retries": 0,
+        "ms": 1286,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.31,
+            "keepResult": 0.09
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.25,
+            "keepResult": 0.15
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.37,
+            "keepResult": 0.19
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.37,
+            "keepResult": 0.1
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.81,
+            "keepResult": 0.33
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.77,
+            "keepResult": 0.44
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.26,
+            "keepResult": 0.11
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.3,
+            "keepResult": 0.09
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.28,
+            "keepResult": 0.17
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.33,
+            "keepResult": 0.41
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.16,
+            "keepResult": 0.22
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      },
+      "actionAgreement": 4
+    },
+    {
+      "loadMs": 6072,
+      "repeat": 1,
+      "language": "it",
+      "condition": "explicit",
+      "laya": {
+        "reductionPercent": 27,
+        "messagesBefore": 39,
+        "messagesAfter": 39,
+        "charsBefore": 60309,
+        "charsAfter": 44020,
+        "calls": 14,
+        "kept": 8,
+        "resultsDropped": 3,
+        "callsDropped": 0,
+        "pinned": 3,
+        "stateTokens": 4258,
+        "stateStage": "full",
+        "requests": [
+          {
+            "inferMs": 20691,
+            "usage": {
+              "input_tokens": 78102,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2210168832
+          },
+          {
+            "inferMs": 4298,
+            "usage": {
+              "input_tokens": 5072,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2210168832
+          }
+        ],
+        "retries": 0,
+        "ms": 25022,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.97,
+            "keepResult": 0.929
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.977,
+            "keepResult": 0.92
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.975,
+            "keepResult": 0.918
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.962,
+            "keepResult": 0.899
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.974,
+            "keepResult": 0.913
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.961,
+            "keepResult": 0.926
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.96,
+            "keepResult": 0.899
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.965,
+            "keepResult": 0.923
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.973,
+            "keepResult": 0.912
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.943,
+            "keepResult": 0.904
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.863,
+            "keepResult": 0.917
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      },
+      "jev": {
+        "reductionPercent": 85.9,
+        "messagesBefore": 39,
+        "messagesAfter": 21,
+        "charsBefore": 60309,
+        "charsAfter": 8522,
+        "calls": 14,
+        "kept": 0,
+        "resultsDropped": 2,
+        "callsDropped": 9,
+        "pinned": 3,
+        "stateTokens": 4258,
+        "stateStage": "full",
+        "requests": 2,
+        "retries": 0,
+        "ms": 1440,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.28,
+            "keepResult": 0.09
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.27,
+            "keepResult": 0.17
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.37,
+            "keepResult": 0.19
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.35,
+            "keepResult": 0.1
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.81,
+            "keepResult": 0.26
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.74,
+            "keepResult": 0.38
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.25,
+            "keepResult": 0.1
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.29,
+            "keepResult": 0.09
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.27,
+            "keepResult": 0.15
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.39,
+            "keepResult": 0.43
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.22,
+            "keepResult": 0.26
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      },
+      "actionAgreement": 4
+    },
+    {
+      "loadMs": 56152,
+      "repeat": 1,
+      "language": "it",
+      "condition": "inferred",
+      "inferredGoal": "Ora indaga il problema di arrotondamento dello sconto nel carrello. Leggi src/cart.ts e tests/cart.test.ts, verifica se la logica delle imposte è rilevante e spiega la correzione minima. Non modificare i file.\nPrepara una bozza di note di rilascio che copra il calcolo delle fatture e il bug di arrotondamento del carrello. Rileggi docs/release.md e docs/billing.md e controlla src/cart.ts per descrivere correttamente il comportamento. Non modificare i file.\nPer una checklist di rilascio, usa Glob per elencare i file sorgente e la documentazione, Grep per trovare i riferimenti all’arrotondamento in src e Bash per eseguire wc -l sui file sorgente, di test e di documentazione. Non modificare nulla; riferisci cosa hai trovato.",
+      "laya": {
+        "options": {
+          "maxStateTokens": 1200
+        },
+        "reductionPercent": 27,
+        "messagesBefore": 39,
+        "messagesAfter": 39,
+        "charsBefore": 60309,
+        "charsAfter": 44020,
+        "calls": 14,
+        "kept": 8,
+        "resultsDropped": 3,
+        "callsDropped": 0,
+        "pinned": 3,
+        "stateTokens": 1193,
+        "stateStage": "old messages left out",
+        "requests": [
+          {
+            "inferMs": 8770,
+            "usage": {
+              "input_tokens": 23342,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 1292337152
+          },
+          {
+            "inferMs": 664,
+            "usage": {
+              "input_tokens": 2166,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 1292337152
+          }
+        ],
+        "retries": 0,
+        "ms": 9477,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.928,
+            "keepResult": 0.83
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.932,
+            "keepResult": 0.775
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.938,
+            "keepResult": 0.823
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.9,
+            "keepResult": 0.729
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.885,
+            "keepResult": 0.71
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.923,
+            "keepResult": 0.814
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.892,
+            "keepResult": 0.694
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.931,
+            "keepResult": 0.838
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.875,
+            "keepResult": 0.741
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.76,
+            "keepResult": 0.522
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.923,
+            "keepResult": 0.789
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      },
+      "jev": {
+        "reductionPercent": 82.9,
+        "messagesBefore": 39,
+        "messagesAfter": 33,
+        "charsBefore": 60309,
+        "charsAfter": 10319,
+        "calls": 14,
+        "kept": 1,
+        "resultsDropped": 7,
+        "callsDropped": 3,
+        "pinned": 3,
+        "stateTokens": 4421,
+        "stateStage": "full",
+        "requests": 2,
+        "retries": 0,
+        "ms": 910,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.67,
+            "keepResult": 0.09
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.71,
+            "keepResult": 0.3
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.74,
+            "keepResult": 0.33
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.75,
+            "keepResult": 0.09
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.69,
+            "keepResult": 0.2
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.57,
+            "keepResult": 0.15
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.44,
+            "keepResult": 0.11
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.43,
+            "keepResult": 0.1
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.31,
+            "keepResult": 0.13
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.84,
+            "keepResult": 0.54
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "drop_result",
+            "reason": "result_dropped",
+            "keepCall": 0.81,
+            "keepResult": 0.45
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      },
+      "actionAgreement": 7
+    }
+  ],
+  "alternatives": [
+    {
+      "questionType": "choice",
+      "loadMs": 4610,
+      "repeat": 1,
+      "language": "it",
+      "condition": "explicit",
+      "laya": {
+        "reductionPercent": 87.3,
+        "messagesBefore": 39,
+        "messagesAfter": 17,
+        "charsBefore": 60309,
+        "charsAfter": 7681,
+        "calls": 14,
+        "kept": 0,
+        "resultsDropped": 0,
+        "callsDropped": 11,
+        "pinned": 3,
+        "stateTokens": 4258,
+        "stateStage": "full",
+        "requests": [
+          {
+            "inferMs": 20539,
+            "usage": {
+              "input_tokens": 78082,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2753904640
+          },
+          {
+            "inferMs": 5173,
+            "usage": {
+              "input_tokens": 5070,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2753904640
+          }
+        ],
+        "retries": 0,
+        "ms": 25736,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.233,
+            "keepResult": 0.294
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.278,
+            "keepResult": 0.334
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.288,
+            "keepResult": 0.309
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.233,
+            "keepResult": 0.313
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.251,
+            "keepResult": 0.311
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.249,
+            "keepResult": 0.278
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.228,
+            "keepResult": 0.334
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.229,
+            "keepResult": 0.295
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.251,
+            "keepResult": 0.315
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.231,
+            "keepResult": 0.381
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.135,
+            "keepResult": 0.233
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      }
+    },
+    {
+      "questionType": "noul",
+      "loadMs": 5774,
+      "repeat": 1,
+      "language": "it",
+      "condition": "explicit",
+      "laya": {
+        "options": {
+          "goal": "Correggi il problema di arrotondamento dello sconto nel carrello in src/cart.ts usando tests/cart.test.ts.",
+          "maxStateTokens": 1200
+        },
+        "reductionPercent": 27,
+        "messagesBefore": 39,
+        "messagesAfter": 39,
+        "charsBefore": 60309,
+        "charsAfter": 44020,
+        "calls": 14,
+        "kept": 8,
+        "resultsDropped": 3,
+        "callsDropped": 0,
+        "pinned": 3,
+        "stateTokens": 1187,
+        "stateStage": "old messages collapsed",
+        "requests": [
+          {
+            "inferMs": 4524,
+            "usage": {
+              "input_tokens": 22902,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2755936256
+          },
+          {
+            "inferMs": 519,
+            "usage": {
+              "input_tokens": 2244,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2755936256
+          }
+        ],
+        "retries": 0,
+        "ms": 5050,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.931,
+            "keepResult": 0.897
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.921,
+            "keepResult": 0.86
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.926,
+            "keepResult": 0.888
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.914,
+            "keepResult": 0.846
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_result",
+            "reason": "repeated",
+            "keepCall": 0.905,
+            "keepResult": 0.825
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.916,
+            "keepResult": 0.877
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.912,
+            "keepResult": 0.851
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.931,
+            "keepResult": 0.895
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.892,
+            "keepResult": 0.819
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.77,
+            "keepResult": 0.723
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "kept",
+            "keepCall": 0.981,
+            "keepResult": 0.845
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      }
+    },
+    {
+      "questionType": "choice",
+      "loadMs": 5381,
+      "repeat": 1,
+      "language": "it",
+      "condition": "explicit",
+      "laya": {
+        "options": {
+          "goal": "Correggi il problema di arrotondamento dello sconto nel carrello in src/cart.ts usando tests/cart.test.ts.",
+          "maxStateTokens": 1200
+        },
+        "reductionPercent": 87.3,
+        "messagesBefore": 39,
+        "messagesAfter": 17,
+        "charsBefore": 60309,
+        "charsAfter": 7681,
+        "calls": 14,
+        "kept": 0,
+        "resultsDropped": 0,
+        "callsDropped": 11,
+        "pinned": 3,
+        "stateTokens": 1187,
+        "stateStage": "old messages collapsed",
+        "requests": [
+          {
+            "inferMs": 3816,
+            "usage": {
+              "input_tokens": 22882,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2756575232
+          },
+          {
+            "inferMs": 726,
+            "usage": {
+              "input_tokens": 2242,
+              "output_tokens": 0
+            },
+            "peakRssBytes": 2756575232
+          }
+        ],
+        "retries": 0,
+        "ms": 4551,
+        "decisions": [
+          {
+            "id": "t1",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.052,
+            "keepResult": 0.066
+          },
+          {
+            "id": "t2",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.06,
+            "keepResult": 0.083
+          },
+          {
+            "id": "t3",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.052,
+            "keepResult": 0.074
+          },
+          {
+            "id": "t4",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.066,
+            "keepResult": 0.074
+          },
+          {
+            "id": "t5",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.061,
+            "keepResult": 0.082
+          },
+          {
+            "id": "t6",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.047,
+            "keepResult": 0.07
+          },
+          {
+            "id": "t7",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.063,
+            "keepResult": 0.078
+          },
+          {
+            "id": "t8",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.057,
+            "keepResult": 0.07
+          },
+          {
+            "id": "t9",
+            "tool": "Read",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.05,
+            "keepResult": 0.08
+          },
+          {
+            "id": "t10",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.058,
+            "keepResult": 0.097
+          },
+          {
+            "id": "t11",
+            "tool": "Glob",
+            "action": "drop_call",
+            "reason": "call_dropped",
+            "keepCall": 0.236,
+            "keepResult": 0.206
+          },
+          {
+            "id": "t12",
+            "tool": "Glob",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t13",
+            "tool": "Grep",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          },
+          {
+            "id": "t14",
+            "tool": "Bash",
+            "action": "keep",
+            "reason": "pinned",
+            "keepCall": 1,
+            "keepResult": 1
+          }
+        ]
+      }
+    }
+  ]
+}

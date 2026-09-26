@@ -52,6 +52,9 @@ compact-jev/
 │   ├── README.md          # Sonnet/Jev measurement method, results, per-call decisions
 │   ├── sonnet-session.json # normalized, synthetic-file Claude Code Sonnet transcript
 │   ├── run.ts             # live Jev replay: inferred vs explicit goal, three repeats each
+│   ├── compare-laya.ts    # experimental local Laya vs live Jev replay, English/Italian prompts
+│   ├── laya-worker.py     # JSON-lines Python bridge for the local Laya checkpoint
+│   ├── laya-comparison.json # measured local comparison (research only)
 │   └── results.json       # recorded live decisions and size statistics
 ├── src/                   # the library (host-agnostic)
 │   ├── index.ts           # re-exports everything
@@ -106,6 +109,11 @@ compact-jev/
 - **`.claude-plugin/plugin.json`**: `userConfig` options, namely `apiKey` (sensitive), `keepThreshold`, `preserveRecentMessages`, `maxStateTokens`, `maxRequestTokens`, `maxQuestionsPerRequest`, `truncateHeadChars`, `outputExcerptChars`, `retries` and `model`.
 - **`types/claude-code.d.ts`**: the reference for every `$` call and event shape. Grep it; do not read it whole. Regenerate it with `/plugin-types` after a Claude Code upgrade.
 
+### Benchmarks (`benchmarks/`)
+
+- **`run.ts` / `results.json`**: live Jev replay and its recorded results over the synthetic Sonnet transcript.
+- **`compare-laya.ts` / `laya-worker.py` / `laya-comparison.json`**: research-only local Laya comparison. The TypeScript runner reuses the compaction core, the Python worker holds one Laya checkpoint, and the JSON records live Jev/Laya decisions. The Italian variant translates user prompts only. Run one condition per process because a persistent MPS worker grew in memory and stalled. This is not part of the published npm library or Claude Code hook.
+
 ## Key architectural patterns
 
 - **The library is host-agnostic.** `src/` never imports Claude Code. The hook module calls `src/` directly, because the plugin root is the repo root.
@@ -141,6 +149,8 @@ compact-jev/
 ## Common workflows
 
 **Reproduce the Sonnet benchmark:** set `AI_GATEWAY_API_KEY`, run `npm run benchmark > benchmarks/results.json`, and compare the results with `benchmarks/README.md` and the short table in the root README. The fixture is a recorded Claude Code Sonnet session; the runner replays it through the compaction library and live Jev. Its percentage is a count of transcript characters, not actual Claude Code context tokens. Update the reported numbers only after a live run. The source session used synthetic files with repeated long lines, so do not generalize its reduction rate.
+
+**Reproduce the experimental Laya comparison:** install `laya==0.3.20` in a separate Python 3.12 environment, set `LAYA_PYTHON` to that environment's Python executable, and run `AI_GATEWAY_API_KEY=... BENCH_LANGUAGE=it BENCH_CONDITION=explicit ./node_modules/.bin/tsx benchmarks/compare-laya.ts > /tmp/laya-it-explicit.json`. The runner loads a local checkpoint once, replays one English or Italian user-prompt fixture with an inferred or explicit goal, and optionally calls live Jev for the same transcript. Run each condition and repeat in a fresh process: a long-lived MPS process grew in memory and stalled during evaluation. `LAYA_CHECKPOINT`, `LAYA_DEVICE`, `LAYA_QUESTION_TYPE`, `LAYA_MAX_STATE_TOKENS`, `BENCH_LANGUAGE`, and `BENCH_CONDITION` select experiments. The Laya bridge is only a research tool; the plugin still uses Jev.
 
 **Pack the npm library:** `npm pack` runs `prepack` (`npm run build`) so a clean checkout includes `dist/` even though it is gitignored. Only `dist/`, README, LICENSE and package metadata are published. Validate the tarball with a fresh install before publishing; publishing needs an authenticated npm account with 2FA or an approved publishing credential.
 
