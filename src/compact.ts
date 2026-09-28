@@ -28,6 +28,8 @@ export const DEFAULT_OPTIONS: ResolvedCompactOptions = {
 
 /** Tokens the request envelope (`model`, key names) adds around state and questions. */
 const REQUEST_OVERHEAD_TOKENS = 20;
+/** Keep the host hook worker from holding every request and fitted state at once. */
+const MAX_IN_FLIGHT_REQUESTS = 4;
 
 function finite(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
@@ -334,7 +336,8 @@ function count(decisions: readonly CallDecision[], reason: CallDecision['reason'
  * stay. Each batch of questions gets a state of its own, fitted into
  * `maxStateTokens`: every message's text plus only that batch's calls, each
  * with an excerpt of its output (Jev's docs: a state holding what the
- * question does not need makes its answers worse). Batches run in parallel.
+ * question does not need makes its answers worse). A bounded number of
+ * batches run in parallel, and each state is built only when its slot opens.
  * Throws when Jev fails or the history cannot be fitted.
  */
 export async function compact(
@@ -355,14 +358,27 @@ export async function compact(
   if (candidates.length > 0) {
     // Sized against the largest state a batch may get, so every batch fits.
     batches = batchCalls(candidates, resolved.maxStateTokens, resolved);
-    const states = batches.map((batch) => fitState(messages, batch, resolved, calls));
-    fitted = states.reduce((a, b) => (b.tokens > a.tokens ? b : a));
-    const answered = await Promise.all(
-      batches.map((batch, i) =>
-        askBatch(asker, states[i]!.state, batch, resolved.retries, () => (retries += 1)),
-      ),
+    let nextBatch = 0;
+    let failed = false;
+    const worker = async (): Promise<void> => {
+      while (!failed && nextBatch < batches.length) {
+        const batch = batches[nextBatch++]!;
+        try {
+          const state = fitState(messages, batch, resolved, calls);
+          if (state.tokens > fitted.tokens) fitted = state;
+          const answered = await askBatch(
+            asker, state.state, batch, resolved.retries, () => (retries += 1),
+          );
+          for (const [id, answer] of answered) answers.set(id, answer);
+        } catch (error) {
+          failed = true;
+          throw error;
+        }
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(MAX_IN_FLIGHT_REQUESTS, batches.length) }, () => worker()),
     );
-    for (const map of answered) for (const [id, answer] of map) answers.set(id, answer);
   }
 
   const decisions = dropRepeats(

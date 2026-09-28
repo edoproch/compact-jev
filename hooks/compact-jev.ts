@@ -7,8 +7,9 @@ import type {
   ToolUseSummary,
 } from 'claude-code';
 
-import { compact, reductionRatio, resolveOptions } from '../src/compact.js';
+import { applyDecisions, compact, reductionRatio, resolveOptions } from '../src/compact.js';
 import { askJev, DEFAULT_MODEL } from '../src/request.js';
+import { collectToolCalls } from '../src/state.js';
 import type {
   CompactOptions,
   CompactResult,
@@ -265,8 +266,45 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Preflight and the compact event must describe the same transcript. */
+export function sameTranscript(before: readonly SessionMessage[], now: readonly SessionMessage[]): boolean {
+  if (before.length > now.length) return false;
+  // Core may append its own /compact command echo before raising the hook.
+  if (now.slice(before.length).some((message) =>
+    message.toolUses.length > 0 || (message.toolResults?.length ?? 0) > 0 ||
+    !/^\s*(?:\/compact(?:\s|$)|<command-name>\/compact<\/command-name>)/.test(message.text)
+  )) return false;
+  return before.every((message, i) => {
+    const current = now[i];
+    return current !== undefined && message.role === current.role && message.text === current.text &&
+      message.toolUses.length === current.toolUses.length &&
+      message.toolUses.every((tool, j) =>
+        tool.tool_use_id === current.toolUses[j]?.tool_use_id &&
+        tool.tool === current.toolUses[j]?.tool &&
+        JSON.stringify(tool.input) === JSON.stringify(current.toolUses[j]?.input) &&
+        tool.text === current.toolUses[j]?.text,
+      ) &&
+      (message.toolResults?.length ?? 0) === (current.toolResults?.length ?? 0) &&
+      (message.toolResults ?? []).every((result, j) =>
+        result.tool_use_id === current.toolResults?.[j]?.tool_use_id &&
+        result.text === current.toolResults[j]?.text &&
+        result.isError === current.toolResults[j]?.isError,
+      );
+  });
+}
+
 /** One `/compact-jev` run: the goal typed after the command, and what it ended with. */
-type PendingRun = { goal?: string; outcome?: string; handled?: boolean };
+type PendingRun = {
+  goal?: string;
+  outcome?: string;
+  handled?: boolean;
+  compacting?: boolean;
+  prepared?: {
+    input: SessionMessage[];
+    result: CompactResult;
+    usedNoTrainingFallback: boolean;
+  };
+};
 
 export const register: Register = (on: On, options: PluginOptions) => {
   const configured = resolveHookConfig(options);
@@ -295,15 +333,36 @@ export const register: Register = (on: On, options: PluginOptions) => {
     const goal = event.args.trim();
     if (goal) run.goal = goal;
     pending = run;
-    // Claude Code only lets a plugin rewrite the history inside a compaction,
-    // so this runs core's /compact and answers its `session.compact` below.
+    // Claude Code only lets a plugin rewrite the history inside a compaction.
+    // Finish the expensive Jev work before starting core's /compact: the
+    // session.compact hook has a short worker budget, and a killed worker can
+    // no longer veto core's built-in summary.
     // Not `$.session.compact()`: the engine skips the calling plugin's own
     // hooks for a compaction its code raised ("re-entry", seen on 2.1.280), so
     // core would summarize. It starts from a timer once the command has
     // returned (refused while the command's turn is held), retrying while busy.
     const attempt = async (left: number): Promise<void> => {
       try {
-        await $.command.run({ command: 'compact' });
+        if (!run.prepared) {
+          const input = await $.session.messages();
+          if (input.length >= 4096) {
+            throw new Error('conversation exceeds the 4096-message preflight limit');
+          }
+          const config: HookConfig = { ...configured, apiKey: await getApiKey($, configured) };
+          if (run.goal) config.goal = run.goal;
+          $.ui.log(`preparing ${input.length} messages with Jev`);
+          const { result, usedNoTrainingFallback } = await compactSession(input, config, async (url, init) => {
+            const response = await $.http.fetch(url, init);
+            return { status: response.status, ok: response.ok, text: response.text };
+          });
+          run.prepared = { input, result, usedNoTrainingFallback };
+        }
+        run.compacting = true;
+        try {
+          await $.command.run({ command: 'compact' });
+        } finally {
+          run.compacting = false;
+        }
         notify(
           $,
           run.outcome ??
@@ -311,7 +370,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
         );
         pending = undefined;
       } catch (error) {
-        if (left > 0 && !run.handled) {
+        if (left > 0 && !run.handled && run.prepared) {
           $.clock.after(COMPACT_RETRY_MS, () => void attempt(left - 1));
           return;
         }
@@ -327,7 +386,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
   // If it is reached anyway (our session.compact hook skipped, a wrong shape,
   // a failure), it raises the classic PreCompact first: veto it there.
   on('classic.PreCompact', ($, event, next) => {
-    if (!pending) return next(event);
+    if (!pending?.compacting) return next(event);
     $.ui.log('blocked Claude Code\'s built-in compaction during /compact-jev');
     const block = `/${COMMAND} is running; the built-in summary is disabled for it`;
     pending.outcome ??= `conversation left as is (${block})`;
@@ -338,16 +397,21 @@ export const register: Register = (on: On, options: PluginOptions) => {
     const run = pending;
     // Gate on the pending run only: the /compact the command runs arrives with
     // trigger `manual`, as a typed /compact does.
-    if (!run || event.agentId !== undefined) return next(event);
+    if (!run?.compacting || event.agentId !== undefined) return next(event);
     run.handled = true;
     $.ui.log(`compacting ${event.messages.length} messages with Jev (trigger ${event.trigger})`);
     try {
-      const config: HookConfig = { ...configured, apiKey: await getApiKey($, configured) };
-      if (run.goal) config.goal = run.goal;
-      const { result, messages, usedNoTrainingFallback } = await compactSession(event.messages, config, async (url, init) => {
-        const response = await $.http.fetch(url, init);
-        return { status: response.status, ok: response.ok, text: response.text };
-      });
+      const prepared = run.prepared;
+      if (!prepared || !sameTranscript(prepared.input, event.messages)) {
+        run.outcome = 'conversation left as is (conversation changed while Jev was preparing)';
+        return { skip: run.outcome };
+      }
+      const { result, usedNoTrainingFallback } = prepared;
+      const calls = collectToolCalls(event.messages, resolveOptions(configured).preserveRecentMessages);
+      const output = applyDecisions(
+        event.messages, result.decisions, calls, resolveOptions(configured).truncateHeadChars,
+      );
+      const messages = toSessionMessages(event.messages, output);
       const policyNote = usedNoTrainingFallback ? '; ZDR unavailable, no-training fallback used' : '';
       for (const line of decisionLogLines(result)) $.ui.log(line);
       if (!changedAnything(result)) {

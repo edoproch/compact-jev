@@ -7,6 +7,7 @@ import {
   decisionLogLines,
   register,
   resolveHookConfig,
+  sameTranscript,
   summarize,
   toSessionMessages,
 } from '../hooks/compact-jev.ts';
@@ -69,6 +70,15 @@ describe('hook config', () => {
 });
 
 describe('session message mapping', () => {
+  it('accepts only a core /compact echo after the prepared transcript', () => {
+    const prepared = transcript();
+    expect(sameTranscript(prepared, [...transcript(), message('user', '/compact')])).toBe(true);
+    expect(sameTranscript(prepared, [...transcript(), message('user', 'new request')])).toBe(false);
+    const changedInput = transcript();
+    changedInput[1]!.toolUses[0]!.input = { file_path: 'src/other.ts' };
+    expect(sameTranscript(prepared, changedInput)).toBe(false);
+  });
+
   it('returns the engine objects for untouched messages and handle-less copies for rebuilt ones', () => {
     const messages = transcript();
     const calls = collectToolCalls(messages, 0);
@@ -230,6 +240,7 @@ function engine(
     next: () => Promise<unknown>,
   ) => Promise<{ messages?: unknown[]; skip?: string }>;
   const $ = {
+    session: { messages: async () => messages() },
     env: { get: async (name: string) => env[name] },
     settings: { read: async () => ({}) },
     ui: {
@@ -265,9 +276,9 @@ function engine(
       hooks.get('command.run') as unknown as ($: unknown, e: unknown) => Promise<{ text: string }>
     )($, { command: COMMAND, args });
     expect(immediate).toBe('compacting with Jev…');
-    while (timers.length > 0) {
-      timers.shift()!();
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let i = 0; state.toasts.length === 0 && i < 1000; i++) {
+      timers.shift()?.();
+      await new Promise((resolve) => setTimeout(resolve, 1));
     }
     return { text: state.toasts.at(-1) ?? '' };
   };
@@ -316,8 +327,9 @@ describe('the /compact-jev plugin', () => {
     expect(installed.map((m) => m.handle)).toEqual(['h-0', 'h-tool-2', 'r-tool-2', 'h-5', 'h-6']);
     expect(installed.some((m) => m.text === 'built-in summary')).toBe(false);
     expect(text).toMatch(/^kept 5\/7 messages, no summary \(\d+% reduction; 1 kept, 1 call_dropped/);
-    expect(state.logs[0]).toBe('compacting 7 messages with Jev (trigger manual)');
-    expect(state.logs[1]).toMatch(/^decisions: t1:Read:drop_call/);
+    expect(state.logs[0]).toBe('preparing 7 messages with Jev');
+    expect(state.logs[1]).toBe('compacting 7 messages with Jev (trigger manual)');
+    expect(state.logs[2]).toMatch(/^decisions: t1:Read:drop_call/);
   });
 
   it('reports when the Hobby fallback was used', async () => {
@@ -332,6 +344,37 @@ describe('the /compact-jev plugin', () => {
     expect(state.fetches).toBe(2);
     expect(text).toContain('ZDR unavailable, no-training fallback used');
     expect(state.coreRuns).toBe(0);
+  });
+
+  it('finishes a slow Jev request before starting core compaction', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const successful = jevFetch(() => 0.1);
+    const run = engine(load(), async (url, init) => {
+      await gate;
+      return successful(url, init);
+    });
+    const running = run.runCommand();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(run.state.fetches).toBe(1);
+    expect(run.state.compactCalls).toBe(0);
+    expect(await run.compactEvent('auto')).toBe(BUILT_IN_SUMMARY);
+    expect(run.state.coreRuns).toBe(1);
+    release();
+    expect((await running).text).toMatch(/^kept /);
+    expect(run.state.coreRuns).toBe(1);
+  });
+
+  it('skips compaction if the transcript changed after Jev prepared it', async () => {
+    let reads = 0;
+    const run = engine(load(), jevFetch(() => 0.1), undefined, () => {
+      const current = transcript();
+      if (++reads > 1) current[0]!.text = 'A different task';
+      return current;
+    });
+    expect((await run.runCommand()).text).toMatch(/conversation changed while Jev was preparing/);
+    expect(run.state.installed?.skip).toMatch(/conversation changed/);
+    expect(run.state.coreRuns).toBe(0);
   });
 
   it('applies any reduction, however small (no minimum ratio)', async () => {
@@ -368,7 +411,8 @@ describe('the /compact-jev plugin', () => {
     expect((await failing.runCommand()).text).toBe(
       'conversation left as is (Jev request failed (429): rate limited)',
     );
-    expect(failing.state.installed?.skip).toMatch(/429/);
+    expect(failing.state.installed).toBeUndefined();
+    expect(failing.state.compactCalls).toBe(0);
 
     const keyless = engine(load(), jevFetch(() => 0.1), {});
     expect((await keyless.runCommand()).text).toMatch(/AI_GATEWAY_API_KEY is not configured/);

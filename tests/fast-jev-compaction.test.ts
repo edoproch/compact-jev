@@ -478,6 +478,33 @@ describe('retries', () => {
 });
 
 describe('compact', () => {
+  it('bounds in-flight Jev requests for a large conversation', async () => {
+    const messages: Message[] = [message('user', 'Fix the current issue')];
+    for (let i = 0; i < 500; i++) {
+      messages.push(call(`tool-${i}`, 'Read', { file_path: `src/file-${i % 20}.ts` }, ''));
+      messages.push(result(`tool-${i}`, 'x'.repeat(2000)));
+      messages.push(message('assistant', 'Checking the next file.'));
+    }
+    let active = 0;
+    let peak = 0;
+    const asker: JevAsker = {
+      async ask(_state, questions) {
+        peak = Math.max(peak, ++active);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        active--;
+        return {
+          answers: Object.fromEntries(
+            Object.keys(questions).map((key) => [key, { type: 'boolean', probability: 0.1 }]),
+          ),
+        };
+      },
+    };
+    const output = await compact(messages, asker);
+    expect(output.stats.requests).toBe(50);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(output.stats.callsDropped).toBe(498);
+  });
+
   it('gives every batch a state with only its own calls and merges the answers', async () => {
     const seen: Seen[] = [];
     const messages = transcript();

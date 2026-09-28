@@ -36,6 +36,8 @@ Run `/compact-jev` in a long conversation. Optionally add the task you want Clau
 
 Jev judges tool calls against that task. Without an explicit task, it uses your last three requests. The first message and the six newest messages are always preserved. The command reports how many messages it kept, whether it used the no-training fallback, and per-call decisions in the debug log (`claude --debug`). If Jev or the Gateway fails, the conversation stays as it is; no summary replaces it.
 
+For long conversations, Jev finishes its analysis before Claude Code starts compaction. The plugin keeps at most four Gateway requests active at once. Claude Code exposes at most 4096 messages through the preflight API; at that limit the command leaves the conversation unchanged.
+
 ## Measured example
 
 I ran four read-only turns in Claude Code 2.1.282 with `--model sonnet` (resolved to `claude-sonnet-5`), then replayed the same 14-tool-call transcript through Jev three times per condition. All three runs in each condition produced the same decisions:

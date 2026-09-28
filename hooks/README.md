@@ -11,19 +11,24 @@ plugin folder is the repository root, so the hook imports it directly):
 
 - `session.start` registers `/compact-jev` with `$.command.register`.
 - `command.run` on `{ command: "compact-jev" }` marks a run as pending,
-  prints `compacting with Jev…`, and with `$.clock.after` runs Claude Code's
-  own `/compact` through `$.command.run({ command: "compact" })`, once the
-  command has returned. While the session is still busy it retries every
-  500 ms, up to 10 times. It does not use `$.session.compact()`: on 2.1.280 the
+  prints `compacting with Jev…`, and with `$.clock.after` reads the session
+  and finishes every Jev request before invoking Claude Code's `/compact`.
+  This keeps network work outside the short `session.compact` worker budget;
+  if preparation fails, `/compact` is never invoked. While the session is
+  still busy it retries the command every 500 ms, up to 10 times. It does
+  not use `$.session.compact()`: on 2.1.280 the
   engine skips the calling plugin's own hooks for that compaction (the debug
   log says `session.compact skipped: re-entry`), so core would summarize. The outcome
   is shown as a toast and a log line.
   The text after the command, if any, becomes the `goal` Jev is shown.
-- `session.compact` acts only while a run is pending, for the main
+- `session.compact` acts only while the pending run's own `/compact` is in flight, for the main
   conversation (no `agentId`). It does not check the trigger: the `/compact`
-  the command runs arrives as `manual`. Anything outside a pending run goes to `next(event)` untouched.
-- `classic.PreCompact` blocks Claude Code's own summarizer while a run is
-  pending. So if the engine ever reaches core during `/compact-jev` (the
+  the command runs arrives as `manual`. It checks that the event transcript
+  matches the prepared transcript, then applies the prepared decisions to the
+  engine's messages, preserving their handles. Other compactions during Jev preparation pass through. Anything outside the run's `/compact`
+  goes to `next(event)` untouched.
+- `classic.PreCompact` blocks Claude Code's own summarizer while the run's
+  `/compact` is in flight. So if the engine ever reaches core during `/compact-jev` (the
   `session.compact` hook skipped for a wrong shape, say), the summary is
   vetoed and the conversation stays as it is. Outside a run it passes. On a
   machine with managed settings the built-in `sec-default` plugin answers
@@ -35,13 +40,18 @@ plugin folder is the repository root, so the hook imports it directly):
   overruns its budget during a run, the handler answers `{ skip }` in its
   place instead of letting core summarize.
 
-During a run the hook reads the AI Gateway key, hands the transcript to the
+During preparation the plugin reads the AI Gateway key, hands the transcript to the
 library (which calls `POST https://ai-gateway.vercel.sh/v1/evaluate`, model
 `typesafe-ai/jev`, through `$.http.fetch`, first requiring zero data
 retention and no prompt training; a ZDR-specific rejection is retried with
 no prompt training still required) and maps the result back onto
 session messages. Unchanged messages keep their engine `handle`; rebuilt ones
 don't.
+
+The library keeps at most four Jev requests in flight and builds each batch's
+state when a request slot opens. `$.session.messages()` supplies at most the
+newest 4096 messages; the plugin refuses preflight at that limit rather than
+compact an incomplete transcript.
 
 - If anything was removed or truncated, it returns `{ messages }`: the pruned
   transcript, with no summary message. There is no minimum-reduction gate.
