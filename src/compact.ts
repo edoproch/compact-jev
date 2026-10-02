@@ -1,5 +1,6 @@
 import { JevRequestError, probabilityAnswer } from './request.js';
 import { callTarget, collectToolCalls, estimateTokens, fitState } from './state.js';
+import { textHead } from './text.js';
 import type {
   CallAnswer,
   CallDecision,
@@ -217,8 +218,9 @@ async function askBatch(
 
 function truncatedResultText(text: string, isError: boolean, headChars: number): string {
   if (text.length <= headChars + 120) return text;
-  const head = headChars > 0 ? `${text.slice(0, headChars)}\n` : '';
-  return `${head}[fast-jev-compaction truncated ${text.length - headChars} chars of this tool result${
+  const prefix = textHead(text, headChars);
+  const head = prefix ? `${prefix}\n` : '';
+  return `${head}[fast-jev-compaction truncated ${text.length - prefix.length} chars of this tool result${
     isError ? ' (error)' : ''
   }; re-run the tool if needed]`;
 }

@@ -18,6 +18,7 @@ import {
   parseJevResponse,
   reductionRatio,
   resolveOptions,
+  truncate,
   type HistoryToolCall,
   type JevAsker,
   type JevQuestions,
@@ -125,6 +126,46 @@ describe('tool call collection', () => {
 
   it('ignores calls without a result', () => {
     expect(collectToolCalls([message('user', 'hi'), call('x', 'Read', {}, '')], 0)).toHaveLength(0);
+  });
+});
+
+describe('Unicode truncation', () => {
+  const wellFormed = (text: string): boolean =>
+    !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(text);
+
+  it('keeps surrogate pairs intact at head and tail excerpt boundaries', () => {
+    for (const text of [
+      'a'.repeat(159) + '😀' + 'b'.repeat(200),
+      'a'.repeat(200) + '😀' + 'b'.repeat(79),
+    ]) {
+      expect(wellFormed(outputExcerpt(text, 240))).toBe(true);
+    }
+    expect(outputExcerpt('a'.repeat(100), 1)).toBe('a […99 chars…] ');
+    expect(truncate('a'.repeat(98) + '😀more', 100)).toBe('a'.repeat(98) + '…');
+    expect(truncate('a'.repeat(97) + '😀more', 100)).toBe('a'.repeat(97) + '😀…');
+  });
+
+  it('sends valid Unicode when long message text is abridged', () => {
+    const text = 'a'.repeat(399) + '😀' + 'b'.repeat(2000) + '😀' + 'c'.repeat(149);
+    const { state, stage } = fitState([message('user', text)], [], {
+      ...fit, maxStateTokens: 400,
+    });
+    expect(stage).toBe('texts abridged');
+    expect(wellFormed(state.history[0]!.text)).toBe(true);
+    expect(state.history[0]!.text).toContain('2004 chars omitted');
+  });
+
+  it('keeps truncated tool results valid and reports the actual omitted length', () => {
+    const text = 'a'.repeat(299) + '😀' + 'b'.repeat(200);
+    const messages = [message('user', 'start'), call('x', 'Read', {}, text), result('x', text)];
+    const calls = collectToolCalls(messages, 0);
+    const decision = decideCall(calls[0]!, { keepCall: 0.9, keepResult: 0.1 }, { keepThreshold: 0.5 });
+    const output = applyDecisions(messages, [decision], calls, 300);
+    const shortened = output[2]!.toolResults![0]!.text;
+    expect(wellFormed(shortened)).toBe(true);
+    expect(shortened).toContain('truncated 202 chars');
+    expect(output[1]!.toolUses[0]!.text).toBe(shortened);
+    expect(messages[2]!.toolResults![0]!.text).toBe(text);
   });
 });
 

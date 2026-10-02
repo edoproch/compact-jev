@@ -29,6 +29,7 @@ function-hooks API is early access (2.1.274+, `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS
 | --- | --- |
 | Install | `npm install` (or `npm ci --ignore-scripts`) |
 | Test | `npm test` (vitest, fake Jev + stand-in engine, no network) |
+| Live Unicode regression | `AI_GATEWAY_API_KEY=... npm run test:live` (real Jev: legacy Unicode rejection and fixed hook compaction) |
 | Live benchmark | `AI_GATEWAY_API_KEY=... npm run benchmark` (real Jev, six runs and 12 requests over a Sonnet transcript) |
 | Type-check | `npm run typecheck` (`src/` via tsconfig.json and `hooks/` via tsconfig.hooks.json; tests are not type-checked) |
 | Build library | `npm run build` (→ `dist/`, gitignored) |
@@ -63,10 +64,12 @@ compact-jev/
 │   ├── compact.ts
 │   ├── request.ts
 │   ├── client.ts
+│   ├── text.ts
 │   └── messages.ts
 ├── tests/
 │   ├── fast-jev-compaction.test.ts   # library tests
-│   └── hook.test.ts                  # hook tests (register() vs stand-in engine)
+│   ├── hook.test.ts                  # hook tests (register() vs stand-in engine)
+│   └── live-unicode.ts               # opt-in real Gateway Unicode regression
 ├── examples/demo.ts       # live demo over a canned transcript
 ├── types/claude-code.d.ts # ~11k lines, generated Claude Code 2.1.274 hook API types
 ├── demo/JevDemo/          # upstream SwiftUI screen-recording animation (no API calls)
@@ -100,6 +103,7 @@ compact-jev/
   - Functions: `buildJevRequest`, `askJev` (tries ZDR first and retries without it only after a ZDR-specific 400/402/403), `parseJevResponse` (throws `JevRequestError` with `status`, `responseText` and `retryable` on non-2xx), and `probabilityAnswer`, which extracts one boolean answer.
 - **`client.ts`**: `JevClient` implements `JevAsker` over `fetch` using `askJev`. The key comes from the option or from `AI_GATEWAY_API_KEY`, and the client is Node-only. `onZdrFallback` reports a privacy downgrade to library callers.
 - **`messages.ts`**: `compactMessages(messages, opts)` is `compact` with a `JevClient`.
+- **`text.ts`**: internal `textHead` / `textTail` helpers keep UTF-16 surrogate pairs intact within character budgets. All state excerpts, text abridging and retained tool-result heads use them, so truncation cannot turn valid Unicode into an invalid Jev request or transcript.
 
 ### Claude Code plugin (`hooks/`, `.claude-plugin/`)
 
@@ -147,6 +151,8 @@ compact-jev/
 - **Decisions:** `keepResult ≥ τ` keeps everything; otherwise `keepCall ≥ τ` truncates the result to `truncateHeadChars` plus a note (only when the result is longer than head + 120); otherwise the call and its result are removed. Then `dropRepeats` truncates a kept output whose identical later call (same tool and input) is kept or pinned too (reason `repeated`): Jev kept both copies of a re-read file even with a `later` note or the later copy in the state, so this is deterministic.
 
 ## Common workflows
+
+**Verify the Unicode regression live:** export `AI_GATEWAY_API_KEY` and run `npm run test:live`. This opt-in script sends synthetic data to the real Gateway, confirms the old split-surrogate request gets HTTP 400, then checks that `compactSession` gets HTTP 200 and removes stale output while preserving conversation text and the original input. It retries only transient Gateway errors (at most three retries), prints results to stdout, and writes no report files. It does not read local Claude settings and is separate from `npm test`.
 
 **Reproduce the Sonnet benchmark:** set `AI_GATEWAY_API_KEY`, run `npm run benchmark > benchmarks/results.json`, and compare the results with `benchmarks/README.md` and the short table in the root README. The fixture is a recorded Claude Code Sonnet session; the runner replays it through the compaction library and live Jev. Its percentage is a count of transcript characters, not actual Claude Code context tokens. Update the reported numbers only after a live run. The source session used synthetic files with repeated long lines, so do not generalize its reduction rate.
 

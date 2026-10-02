@@ -27,6 +27,7 @@
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit && npm run typecheck:hooks",
     "test": "vitest run",
+    "test:live": "tsx tests/live-unicode.ts",
     "benchmark": "tsx benchmarks/run.ts",
     "demo": "tsx examples/demo.ts",
     "typecheck:hooks": "tsc -p tsconfig.hooks.json",

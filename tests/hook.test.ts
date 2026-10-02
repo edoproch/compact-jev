@@ -120,6 +120,34 @@ describe('session message mapping', () => {
 });
 
 describe('compactSession', () => {
+  it('compacts Unicode outputs without sending isolated surrogates or changing message text', async () => {
+    const text = 'a'.repeat(159) + '😀' + 'b'.repeat(200);
+    const original = [
+      message('user', 'Fix 😀 café 漢字', { handle: 'h-0' }),
+      call('x', 'Read', { file_path: 'emoji.ts' }, text),
+      result('x', text),
+      message('assistant', 'Done 😀', { handle: 'h-last' }),
+    ];
+    const successful = jevFetch(() => 0.1);
+    const bodies: string[] = [];
+    const { messages, result: output } = await compactSession(original, {
+      apiKey: 'k', model: 'typesafe-ai/jev', preserveRecentMessages: 1,
+    }, async (url, init) => {
+      const wire = JSON.parse(init?.body ?? '{}');
+      const excerpt = wire.state.history[1].tool_calls[0].result;
+      if (/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(excerpt)) {
+        return { status: 400, ok: false, text: 'Request contains invalid Unicode text.' };
+      }
+      bodies.push(init!.body!);
+      return successful(url, init);
+    });
+    expect(bodies).toHaveLength(1);
+    expect(output.stats.callsDropped).toBe(1);
+    expect(messages).toEqual([original[0], original[3]]);
+    expect(messages[0]).toBe(original[0]);
+    expect(original[2]!.toolResults![0]!.text).toBe(text);
+  });
+
   it('runs the library over the engine fetch and reports the outcome', async () => {
     const bodies: string[] = [];
     const config = { ...resolveHookConfig({ preserveRecentMessages: 1 }), apiKey: 'k', model: 'jev-x' };

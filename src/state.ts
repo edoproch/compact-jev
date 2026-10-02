@@ -1,3 +1,4 @@
+import { textHead, textTail } from './text.js';
 import type {
   CompactionState,
   FittedState,
@@ -43,13 +44,15 @@ export function estimateTokens(text: string): number {
 }
 
 export function truncate(text: string, limit: number): string {
-  return text.length <= limit ? text : `${text.slice(0, Math.max(0, limit - 1))}…`;
+  return text.length <= limit ? text : `${textHead(text, limit - 1)}…`;
 }
 
 function abridge(text: string, head: number, tail: number): string {
   if (text.length <= head + tail + 40) return text;
-  const omitted = text.length - head - tail;
-  return `${text.slice(0, head)}\n[… ${omitted} chars omitted …]\n${text.slice(-tail)}`;
+  const prefix = textHead(text, head);
+  const suffix = textTail(text, tail);
+  const omitted = text.length - prefix.length - suffix.length;
+  return `${prefix}\n[… ${omitted} chars omitted …]\n${suffix}`;
 }
 
 /** The start and end of a tool output, `chars` long in all; '' for 0. */
@@ -59,7 +62,9 @@ export function outputExcerpt(text: string, chars: number): string {
   if (flat.length <= chars + 20) return flat;
   const head = Math.round(chars * EXCERPT_HEAD);
   const tail = chars - head;
-  return `${flat.slice(0, head)} […${flat.length - chars} chars…] ${flat.slice(-tail)}`;
+  const prefix = textHead(flat, head);
+  const suffix = textTail(flat, tail);
+  return `${prefix} […${flat.length - prefix.length - suffix.length} chars…] ${suffix}`;
 }
 
 /** What a call acts on, from its input: a path, command, URL or query. */
