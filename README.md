@@ -1,5 +1,7 @@
 # compact-jev
 
+[![HOL Guard](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%3Fslug%3Dedoproch%252Fcompact-jev%26metric%3Dtrust)](https://hol.org/registry/plugins/edoproch%2Fcompact-jev)
+
 `/compact-jev` is a Claude Code plugin that frees context without writing a summary. It asks [Jev](https://vercel.com/ai-gateway/models/jev), through Vercel AI Gateway, which old tool calls and results still matter. It keeps your and Claude's messages verbatim, removes stale calls, and shortens stale results. It runs only when you type `/compact-jev`; Claude Code's `/compact` and automatic compaction still work normally.
 
 The repository also contains a TypeScript library for using the same compaction logic outside Claude Code.
